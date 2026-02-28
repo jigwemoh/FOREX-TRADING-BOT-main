@@ -66,7 +66,13 @@ def apply_features(df: pd.DataFrame) -> pd.DataFrame:
     df["ATR"] = ta.volatility.average_true_range(df["High"], df["Low"], df["Close"], window=14)
     df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
     df["STOCH"] = ta.momentum.stoch(df["High"], df["Low"], df["Close"])
-    df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"])
+    
+    # VWAP only works with non-zero volume
+    if df["Volume"].sum() > 0:
+        df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"])
+    else:
+        df["VWAP"] = df["Close"]  # Use Close as fallback when no volume data
+    
     df["Candle_Body"] = abs(df["Close"] - df["Open"])
     df["Body_to_Range"] = df["Candle_Body"] / (df["High"] - df["Low"]).replace(0, np.nan)
     df["Log_Return"] = np.log(df["Close"] / df["Close"].shift(1))
@@ -81,7 +87,7 @@ def apply_features(df: pd.DataFrame) -> pd.DataFrame:
     df["Dist_to_Rolling_Max"] = df["Close"].rolling(window=50).max() - df["Close"]
     df["Dist_to_Rolling_Min"] = df["Close"] - df["Close"].rolling(window=50).min()
     df["Rolling_Mean_Volume"] = df["Volume"].rolling(window=20).mean()
-    df["Volume_Spike"] = df["Volume"] / df["Rolling_Mean_Volume"]
+    df["Volume_Spike"] = df["Volume"] / df["Rolling_Mean_Volume"].replace(0, 1)
     df["Vol_Range"] = df["Volume"] * (df["High"] - df["Low"])
 
     WINDOW = 20  # you can tune this
@@ -140,6 +146,9 @@ def apply_features(df: pd.DataFrame) -> pd.DataFrame:
     #     for amt_lag in range(1,6):
     #         df[f'{all_feature}_lag{amt_lag}'] = df[f'{all_feature}'].shift(amt_lag)
 
+    # Replace inf values caused by zero division
+    df = df.replace([np.inf, -np.inf], np.nan)
+    
     df.set_index("Date", inplace=True)
     return df
 

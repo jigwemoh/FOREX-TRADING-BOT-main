@@ -72,6 +72,10 @@ class CryptoModelTrainer:
         # Rename columns to match expected format
         if 'time' in df.columns:
             df.rename(columns={'time': 'Date'}, inplace=True)
+        elif 'Datetime' in df.columns:
+            df.rename(columns={'Datetime': 'Date'}, inplace=True)
+        elif 'datetime' in df.columns:
+            df.rename(columns={'datetime': 'Date'}, inplace=True)
         
         if df.empty:
             print("✗ Empty dataframe")
@@ -152,6 +156,9 @@ class CryptoModelTrainer:
         # Volume
         df['Volume_MA'] = df['Volume'].rolling(20).mean()
         df['Volume_Ratio'] = df['Volume'] / df['Volume_MA'].replace(0, 1)
+        
+        # Replace inf values caused by zero volume
+        df = df.replace([np.inf, -np.inf], np.nan)
         
         # Trend
         df['Trend'] = np.where(df['SMA_20'] > df['SMA_50'], 1, -1)
