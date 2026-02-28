@@ -31,10 +31,14 @@ class ConfigManager:
         
         # Trading parameters
         print("\n[Trading Parameters]")
-        symbol = input("Symbol (default: EURUSD): ") or "EURUSD"
+        print("Available symbols:")
+        print("  Forex: EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF")
+        print("  Cryptos: BTCUSD, ETHUSD, XRPUSD, LTCUSD, ADAUSD, SOLUSD, DOGEUSD")
+        symbols_input = input("Symbols to trade (comma-separated, default: EURUSD): ").strip()
+        symbols = [s.strip().upper() for s in symbols_input.split(",")] if symbols_input else ["EURUSD"]
         timeframe = input("Timeframe (1M/5M/15M/30M/1H/4H/1D, default: 1H): ") or "1H"
         risk_percent = float(input("Risk per trade % (default: 1.0): ") or "1.0")
-        max_positions = int(input("Max open positions (default: 3): ") or "3")
+        max_positions = int(input("Max open positions per symbol (default: 3): ") or "3")
         use_ml = input("Use ML predictions? (yes/no, default: yes): ").lower() != "no"
         
         # Risk management
@@ -61,7 +65,7 @@ class ConfigManager:
                 "terminal_path": mt5_terminal_path
             },
             "trading": {
-                "symbol": symbol,
+                "symbols": symbols,
                 "timeframe": timeframe,
                 "risk_percent": risk_percent,
                 "max_positions": max_positions,
