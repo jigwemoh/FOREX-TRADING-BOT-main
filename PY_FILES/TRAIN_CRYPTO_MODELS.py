@@ -289,8 +289,12 @@ class CryptoModelTrainer:
         symbol_dir = self.models_dir / symbol
         symbol_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save model for different timeframes
-        for tf in ['T_5M', 'T_10M', 'T_15M', 'T_20M', 'T_30M']:
+        # Save model for different timeframes (intraday and daily)
+        timeframes = [
+            'T_5M', 'T_10M', 'T_15M', 'T_20M', 'T_30M',  # Intraday
+            'T_1H', 'T_4H', 'T_1D', 'T_1W', 'T_1M'      # Daily and higher
+        ]
+        for tf in timeframes:
             model_path = symbol_dir / f"{tf}.joblib"
             scaler_path = symbol_dir / f"{tf}_scaler.joblib"
             
@@ -301,7 +305,7 @@ class CryptoModelTrainer:
         features_path = symbol_dir / "features.joblib"
         joblib.dump(features, features_path)
         
-        print(f"  ✓ Saved to {symbol_dir}")
+        print(f"  ✓ Saved {len(timeframes)} timeframe models to {symbol_dir}")
     
     def train_all_symbols(self, symbols: Optional[List[str]] = None) -> Tuple[Dict[str, Metrics], List[str]]:
         """Train models for multiple symbols"""

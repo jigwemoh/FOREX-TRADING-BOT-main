@@ -52,11 +52,15 @@ class MultiSymbolAutoTrader:
         self.timeframe_map = {
             "1M": mt5.TIMEFRAME_M1,
             "5M": mt5.TIMEFRAME_M5,
+            "10M": mt5.TIMEFRAME_M10,
             "15M": mt5.TIMEFRAME_M15,
+            "20M": mt5.TIMEFRAME_M20,
             "30M": mt5.TIMEFRAME_M30,
             "1H": mt5.TIMEFRAME_H1,
             "4H": mt5.TIMEFRAME_H4,
-            "1D": mt5.TIMEFRAME_D1
+            "1D": mt5.TIMEFRAME_D1,
+            "1W": mt5.TIMEFRAME_W1,
+            "1M_tf": mt5.TIMEFRAME_MN1
         }
         
         # Major crypto pairs support
@@ -129,8 +133,9 @@ class MultiSymbolAutoTrader:
                 continue
                 
             try:
-                # Load models for different timeframes
-                for tf in ["T_5M", "T_10M", "T_15M", "T_20M", "T_30M"]:
+                # Load models for different timeframes (intraday and daily/higher)
+                timeframes = ["T_5M", "T_10M", "T_15M", "T_20M", "T_30M", "T_1H", "T_4H", "T_1D", "T_1W", "T_1M"]
+                for tf in timeframes:
                     model_path = model_dir / f"{tf}.joblib"
                     scaler_path = model_dir / f"{tf}_scaler.joblib"
                     
