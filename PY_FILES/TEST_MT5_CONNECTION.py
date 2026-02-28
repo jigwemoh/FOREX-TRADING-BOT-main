@@ -29,7 +29,8 @@ def test_mt5_connection():
     trading_cfg = config.get("trading", {})
     
     # MT5 credentials are already loaded in the terminal
-    SYMBOL = str(trading_cfg.get("symbol", "EURUSD"))
+    # Ensure symbol is uppercase
+    SYMBOL = str(trading_cfg.get("symbol", "EURUSD")).upper()
     
     # Check if MT5 is initialized
     if not mt5.initialize():
@@ -98,19 +99,16 @@ def test_mt5_connection():
     for sym in test_symbols:
         if mt5.symbol_select(sym, True):
             time.sleep(0.5)
-            test_rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_H1, 0, 1)
-            if test_rates is not None and len(test_rates) > 0:
+            rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_H1, 0, 1)
+            if rates is not None and len(rates) > 0:
                 available.append(sym)
-                print(f"  ✓ {sym}")
-            else:
-                print(f"  ✗ {sym} (selected but no data)")
-        else:
-            print(f"  ✗ {sym}")
     
-    print(f"\n[INFO] Available symbols: {', '.join(available)}")
+    if available:
+        print(f"[SUCCESS] Available symbols: {', '.join(available)}")
+    else:
+        print(f"[WARNING] Could not fetch data for any test symbols")
     
     mt5.shutdown()
-    print("\n[SUCCESS] All tests passed!")
     return True
 
 if __name__ == "__main__":

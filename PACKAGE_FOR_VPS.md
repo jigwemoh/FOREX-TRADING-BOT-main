@@ -38,9 +38,8 @@ scp forex-bot-complete.tar.gz Administrator@YOUR_VPS_IP:C:/
 cd C:\
 tar -xzf forex-bot-complete.tar.gz
 
-# Rename folder
-Rename-Item -Path "FOREX-TRADING-BOT-main" -NewName "TradingBot"
-cd TradingBot
+# Use extracted project folder
+cd FOREX-TRADING-BOT-main
 
 # Run automated setup
 powershell -ExecutionPolicy Bypass -File .\SETUP_VPS.ps1
@@ -70,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File .\SETUP_VPS.ps1
 3. **Copy Files**
    - On VPS, open File Explorer
    - You'll see your Mac drive under "This PC"
-   - Copy these folders/files to `C:\TradingBot\`:
+   - Copy these folders/files to `C:\FOREX-TRADING-BOT-main\`:
      ```
      PY_FILES/
      ALL_MODELS/
@@ -85,7 +84,7 @@ powershell -ExecutionPolicy Bypass -File .\SETUP_VPS.ps1
 ### Step 2: Run Setup on VPS
 
 ```powershell
-cd C:\TradingBot
+cd C:\FOREX-TRADING-BOT-main
 powershell -ExecutionPolicy Bypass -File .\SETUP_VPS.ps1
 ```
 
@@ -116,8 +115,8 @@ git push -u origin main
 
 # Clone repository
 cd C:\
-git clone https://github.com/YOUR_USERNAME/forex-trading-bot.git TradingBot
-cd TradingBot
+git clone https://github.com/YOUR_USERNAME/forex-trading-bot.git FOREX-TRADING-BOT-main
+cd FOREX-TRADING-BOT-main
 
 # Run setup
 powershell -ExecutionPolicy Bypass -File .\SETUP_VPS.ps1
@@ -151,7 +150,7 @@ The PowerShell setup script handles everything:
 ### 1. Configure Trading Settings
 
 ```powershell
-cd C:\TradingBot\PY_FILES
+cd C:\FOREX-TRADING-BOT-main\PY_FILES
 python CONFIG_MANAGER.py create
 ```
 
@@ -181,7 +180,7 @@ Press `Ctrl+C` to stop.
 
 **Simple Background Process:**
 ```powershell
-Start-Process python -ArgumentList "AUTO_TRADER.py" -WindowStyle Hidden -WorkingDirectory "C:\TradingBot\PY_FILES"
+Start-Process python -ArgumentList "AUTO_TRADER.py" -WindowStyle Hidden -WorkingDirectory "C:\FOREX-TRADING-BOT-main\PY_FILES"
 ```
 
 **As Windows Service (Production):**
@@ -198,14 +197,14 @@ See `VPS_DEPLOYMENT.md` → Section "Windows Service Setup (NSSM)"
 Get-Process python -ErrorAction SilentlyContinue | Select-Object Id,CPU,WS
 
 # Check logs
-Get-Content C:\TradingBot\PY_FILES\trading_log.txt -Tail 20 -Wait
+Get-Content C:\FOREX-TRADING-BOT-main\PY_FILES\trading_log.txt -Tail 20 -Wait
 ```
 
 ### Monitor from Your Mac (SSH)
 
 ```bash
 # View live logs
-ssh Administrator@YOUR_VPS_IP "type C:\TradingBot\PY_FILES\trading_log.txt"
+ssh Administrator@YOUR_VPS_IP "type C:\FOREX-TRADING-BOT-main\PY_FILES\trading_log.txt"
 
 # Or use the monitoring script
 ./monitor_vps.sh YOUR_VPS_IP
@@ -218,11 +217,13 @@ ssh Administrator@YOUR_VPS_IP "type C:\TradingBot\PY_FILES\trading_log.txt"
 ### If Using Git
 
 ```powershell
-cd C:\TradingBot
+cd C:\FOREX-TRADING-BOT-main
 git pull
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt --upgrade
 ```
+
+> Important: If you update with `git`, do **not** use GitHub "Download ZIP" for updates. ZIP downloads create separate extracted folders and are not a `git` working copy.
 
 ### If Using Manual Transfer
 
@@ -278,10 +279,10 @@ cd /Users/igwemoh/Downloads/FOREX-TRADING-BOT-main
 tar -czf models-only.tar.gz ALL_MODELS/
 
 # Transfer
-scp models-only.tar.gz Administrator@YOUR_VPS_IP:C:/TradingBot/
+scp models-only.tar.gz Administrator@YOUR_VPS_IP:C:/FOREX-TRADING-BOT-main/
 
 # On VPS
-cd C:\TradingBot
+cd C:\FOREX-TRADING-BOT-main
 tar -xzf models-only.tar.gz
 ```
 
@@ -326,7 +327,7 @@ Emergency Stop:
 Stop-Process -Name python -Force
 
 # Or close specific bot process
-Get-Process python | Where-Object {$_.Path -like "*TradingBot*"} | Stop-Process
+Get-Process python | Where-Object {$_.Path -like "*FOREX-TRADING-BOT-main*"} | Stop-Process
 ```
 
 ---

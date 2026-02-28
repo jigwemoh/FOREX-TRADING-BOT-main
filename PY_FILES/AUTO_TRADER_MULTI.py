@@ -10,7 +10,6 @@ except ImportError:
     # Fallback to mock for development on non-Windows systems
     import MT5_MOCK as mt5  # type: ignore
 import pandas as pd
-import numpy as np
 from pathlib import Path
 import time
 import joblib
@@ -479,10 +478,10 @@ if __name__ == "__main__":
 
     # Support both single symbol (legacy) and multiple symbols
     if "symbols" in trading_cfg:
-        SYMBOLS = trading_cfg.get("symbols", ["EURUSD"])
+        symbols_list = trading_cfg.get("symbols", ["EURUSD"])
     else:
         # Fallback for old config format
-        SYMBOLS = [trading_cfg.get("symbol", "EURUSD")]
+        symbols_list = [trading_cfg.get("symbol", "EURUSD")]
     
     TIMEFRAME = str(trading_cfg.get("timeframe", "1H")).upper()
     RISK_PERCENT = float(trading_cfg.get("risk_percent", 1.0))
@@ -492,7 +491,7 @@ if __name__ == "__main__":
     
     # Create trader
     trader = MultiSymbolAutoTrader(
-        symbols=SYMBOLS,
+        symbols=symbols_list,
         timeframe=TIMEFRAME,
         risk_percent=RISK_PERCENT,
         max_positions=MAX_POSITIONS,

@@ -1,0 +1,16 @@
+{
+  "trading": {
+    "symbol": "EURUSD",
+    "timeframe": "H1",
+    "risk_per_trade": 0.02,
+    "max_trades": 5
+  },
+  "mt5": {
+    "login": 49356140,
+    "server": "HFMarketsGlobal-Demo",
+    "timeout": 5000
+  },
+  "notifications": {
+    "enabled": false
+  }
+}

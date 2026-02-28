@@ -18,8 +18,48 @@ Write-Host "`n========================================" -ForegroundColor Magenta
 Write-Host "  FOREX BOT - VPS AUTO UPDATE" -ForegroundColor Magenta
 Write-Host "========================================`n" -ForegroundColor Magenta
 
-# Change to project root
-Set-Location ..
+# Fixed project root on VPS
+$ProjectRoot = "C:\FOREX-TRADING-BOT-main"
+if (!(Test-Path $ProjectRoot)) {
+    Write-Error "Project root not found: $ProjectRoot"
+    Write-Info "Clone repo first: git clone https://github.com/jigwemoh/FOREX-TRADING-BOT-main.git C:\FOREX-TRADING-BOT-main"
+    exit 1
+}
+Set-Location $ProjectRoot
+
+function Invoke-SafeGitPull {
+    param(
+        [string]$TargetBranch
+    )
+
+    git pull origin $TargetBranch
+    if ($LASTEXITCODE -eq 0) {
+        return $true
+    }
+
+    Write-Warning "git pull failed (likely untracked-file conflicts). Backing up and retrying..."
+
+    $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $backupDir = "C:\FOREX-BOT-BACKUPS\PRE_PULL_$timestamp"
+    if (!(Test-Path $backupDir)) { New-Item -ItemType Directory -Path $backupDir | Out-Null }
+
+    if (Test-Path "ALL_MODELS") {
+        Copy-Item "ALL_MODELS" -Destination (Join-Path $backupDir "ALL_MODELS") -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "config.json") {
+        Copy-Item "config.json" -Destination (Join-Path $backupDir "config.json") -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Info "Backup saved: $backupDir"
+
+    git reset --hard
+    git clean -fd -- ALL_MODELS .vscode
+    if (Test-Path ".DS_Store") { Remove-Item ".DS_Store" -Force -ErrorAction SilentlyContinue }
+    if (Test-Path "ALL_MODELS\.DS_Store") { Remove-Item "ALL_MODELS\.DS_Store" -Force -ErrorAction SilentlyContinue }
+
+    git pull origin $TargetBranch
+    return ($LASTEXITCODE -eq 0)
+}
 
 # Check if bot is running
 Write-Info "[1/6] Checking if bot is running..."
@@ -51,11 +91,12 @@ Write-Success "✓ Backup created: $backupPath"
 
 # Update method selection
 Write-Info "`n[3/6] Select update method:"
-Write-Host "  1. Git pull (if using Git)"
-Write-Host "  2. Download from URL (Dropbox/Google Drive link)"
-Write-Host "  3. Manual (files already in C:\FOREX-BOT-UPDATE)"
-Write-Host "`nChoice (1/2/3): " -NoNewline -ForegroundColor Yellow
+Write-Host "  1. Git pull (recommended)"
+Write-Host "  2. Download from URL (advanced/manual)"
+Write-Host "  3. Manual copy (advanced/manual)"
+Write-Host "`nChoice (default=1): " -NoNewline -ForegroundColor Yellow
 $updateMethod = Read-Host
+if ([string]::IsNullOrWhiteSpace($updateMethod)) { $updateMethod = "1" }
 
 switch ($updateMethod) {
     "1" {
@@ -66,8 +107,19 @@ switch ($updateMethod) {
             exit 1
         }
         
-        git pull
+        git fetch origin
         if ($LASTEXITCODE -ne 0) {
+            Write-Error "Git fetch failed!"
+            exit 1
+        }
+
+        git checkout main
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Git checkout main failed!"
+            exit 1
+        }
+
+        if (-not (Invoke-SafeGitPull -TargetBranch "main")) {
             Write-Error "Git pull failed!"
             exit 1
         }
@@ -80,13 +132,13 @@ switch ($updateMethod) {
         Write-Host "Enter download URL: " -NoNewline
         $downloadUrl = Read-Host
         
-        $updatePackage = "$env:TEMP\forex-bot-update.tar.gz"
+            $updatePackage = "$env:TEMP\forex-bot-update.tar.gz"
         try {
             Invoke-WebRequest -Uri $downloadUrl -OutFile $updatePackage
             Write-Success "✓ Download complete"
             
             Write-Info "Extracting update..."
-            tar -xzf $updatePackage -C .
+                tar -xzf $updatePackage -C $ProjectRoot
             Remove-Item $updatePackage
             Write-Success "✓ Update extracted"
         } catch {
@@ -105,7 +157,7 @@ switch ($updateMethod) {
             exit 1
         }
         
-        Copy-Item "$updateDir\*" -Destination . -Recurse -Force
+        Copy-Item "$updateDir\*" -Destination $ProjectRoot -Recurse -Force
         Write-Success "✓ Manual update applied"
     }
     

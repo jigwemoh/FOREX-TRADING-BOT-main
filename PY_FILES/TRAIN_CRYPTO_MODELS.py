@@ -11,23 +11,30 @@ import pandas as pd
 import numpy as np
 import joblib
 import warnings
-from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from lightgbm import LGBMClassifier
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.metrics import classification_report, roc_auc_score
 
 # Add PY_FILES to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from func import apply_features
+    from func import apply_features as external_apply_features
 except ImportError:
     print("Warning: Could not import apply_features from func.py, using basic features")
-    apply_features = None
+    external_apply_features = None
 
 warnings.filterwarnings('ignore')
+
+Metrics = Dict[str, float]
+TrainResult = Tuple[
+    Optional[LGBMClassifier],
+    Optional[StandardScaler],
+    Optional[List[str]],
+    Optional[Metrics],
+]
 
 class CryptoModelTrainer:
     """Train ML models for multiple symbols"""
@@ -51,7 +58,7 @@ class CryptoModelTrainer:
             'USDJPY': 'MT5_5M_BT_USDJPY_Dataset.csv',
         }
         
-    def load_data(self, symbol: str) -> pd.DataFrame:
+    def load_data(self, symbol: str) -> Optional[pd.DataFrame]:
         """Load CSV data for a symbol"""
         file_path = self.data_dir / self.symbols_config[symbol]
         
@@ -81,8 +88,8 @@ class CryptoModelTrainer:
     
     def apply_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply technical features to dataframe"""
-        if apply_features is not None:
-            return apply_features(df)
+        if external_apply_features is not None:
+            return external_apply_features(df)
         else:
             # Fallback: basic feature engineering
             return self._basic_features(df)
@@ -164,7 +171,7 @@ class CryptoModelTrainer:
         df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
         return df
     
-    def train_model(self, symbol: str, df: pd.DataFrame) -> Tuple[LGBMClassifier, StandardScaler, List[str], Dict]:
+    def train_model(self, symbol: str, df: pd.DataFrame) -> TrainResult:
         """Train LightGBM model for a symbol"""
         
         print(f"\n{'='*60}")
@@ -181,19 +188,19 @@ class CryptoModelTrainer:
         print(f"Data points: {len(df):,}")
         
         # Prepare features and target
-        X = df.drop(columns=['Target', 'Volume'])
+        feature_frame = df.drop(columns=['Target', 'Volume'])
         y = df['Target']
         
         # Select numeric columns only
-        numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
-        X = X[numeric_cols]
+        numeric_cols = feature_frame.select_dtypes(include=[np.number]).columns.tolist()
+        feature_frame = feature_frame[numeric_cols]
         
-        print(f"Features: {len(X.columns)}")
+        print(f"Features: {len(feature_frame.columns)}")
         print(f"Target distribution: {y.value_counts().to_dict()}")
         
         # Split data: 70% train, 30% test
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, random_state=42, stratify=y
+            feature_frame, y, test_size=0.3, random_state=42, stratify=y
         )
         
         print(f"Train set: {len(X_train):,} samples")
@@ -201,8 +208,8 @@ class CryptoModelTrainer:
         
         # Scale features
         scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
+        X_train_scaled = np.asarray(scaler.fit_transform(X_train))
+        X_test_scaled = np.asarray(scaler.transform(X_test))
         
         # Train model
         print("\nTraining LightGBM classifier...")
@@ -219,7 +226,7 @@ class CryptoModelTrainer:
         
         # Feature importance
         feature_importance = pd.DataFrame({
-            'feature': X.columns,
+            'feature': feature_frame.columns,
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
         
@@ -227,13 +234,14 @@ class CryptoModelTrainer:
         top_features = feature_importance.head(76)['feature'].tolist()
         
         print(f"\nTop 10 features:")
-        for i, row in feature_importance.head(10).iterrows():
+        for _, row in feature_importance.head(10).iterrows():
             print(f"  {row['feature']}: {row['importance']:.4f}")
         
         # Retrain with top features
         print(f"\nRetraining with top 76 features...")
-        X_train_top = X_train_scaled[:, [list(X.columns).index(f) for f in top_features]]
-        X_test_top = X_test_scaled[:, [list(X.columns).index(f) for f in top_features]]
+        selected_indices = [list(feature_frame.columns).index(f) for f in top_features]
+        X_train_top = X_train_scaled[:, selected_indices]
+        X_test_top = X_test_scaled[:, selected_indices]
         
         model_top = LGBMClassifier(
             n_estimators=200,
@@ -248,7 +256,8 @@ class CryptoModelTrainer:
         
         # Evaluate
         y_pred = model_top.predict(X_test_top)
-        y_pred_proba = model_top.predict_proba(X_test_top)[:, 1]
+        y_pred_proba_all = np.asarray(model_top.predict_proba(X_test_top))
+        y_pred_proba = y_pred_proba_all[:, 1]
         
         accuracy = (y_pred == y_test).mean()
         auc_score = roc_auc_score(y_test, y_pred_proba)
@@ -263,14 +272,14 @@ class CryptoModelTrainer:
         print(f"  Recall (Class 1): {report['1']['recall']:.4f}")
         print(f"  F1-Score (Class 1): {report['1']['f1-score']:.4f}")
         
-        metrics = {
-            'accuracy': accuracy,
-            'auc_score': auc_score,
-            'precision': report['1']['precision'],
-            'recall': report['1']['recall'],
-            'f1_score': report['1']['f1-score'],
-            'n_features': len(top_features),
-            'n_samples': len(X_train)
+        metrics: Metrics = {
+            'accuracy': float(accuracy),
+            'auc_score': float(auc_score),
+            'precision': float(report['1']['precision']),
+            'recall': float(report['1']['recall']),
+            'f1_score': float(report['1']['f1-score']),
+            'n_features': float(len(top_features)),
+            'n_samples': float(len(X_train))
         }
         
         return model_top, scaler, top_features, metrics
@@ -294,13 +303,13 @@ class CryptoModelTrainer:
         
         print(f"  ✓ Saved to {symbol_dir}")
     
-    def train_all_symbols(self, symbols: List[str] = None):
+    def train_all_symbols(self, symbols: Optional[List[str]] = None) -> Tuple[Dict[str, Metrics], List[str]]:
         """Train models for multiple symbols"""
         if symbols is None:
             symbols = list(self.symbols_config.keys())
         
-        results = {}
-        failed = []
+        results: Dict[str, Metrics] = {}
+        failed: List[str] = []
         
         print(f"\n{'='*60}")
         print(f"Multi-Symbol ML Model Training")
