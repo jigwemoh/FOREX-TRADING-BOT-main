@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import requests
 from datetime import datetime
-from typing import Any, Sequence, TypedDict
+from typing import Any, Sequence, TypedDict, Dict
 
 
 
@@ -52,7 +52,7 @@ def apply_features(df: pd.DataFrame) -> pd.DataFrame:
     df["Volume"] = pd.to_numeric(df["Volume"])
     df['Hour'] = df['Date'].dt.hour
     df['Weekday'] = df['Date'].dt.weekday
-    df["Date_ordinal"] = df["Date"].apply(lambda x: x.toordinal())
+    df["Date_ordinal"] = df["Date"].apply(lambda x: x.toordinal())  # type: ignore[arg-type]
 
     df["EMA_20"] = ta.trend.ema_indicator(df["Close"], window=20)
     df["EMA_50"] = ta.trend.ema_indicator(df["Close"], window=50)
@@ -154,7 +154,7 @@ def apply_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
-def calc_lot_size(balance, risk_percent, sl_pips,pip_value_per_lot, min_lot, max_lot):
+def calc_lot_size(balance: float, risk_percent: float, sl_pips: float, pip_value_per_lot: float, min_lot: float, max_lot: float) -> float:
     risk_amount = balance * (risk_percent / 100)
     lot_cal = risk_amount / (sl_pips * pip_value_per_lot)
     lot = max(min_lot, min(lot_cal, max_lot))
@@ -162,7 +162,7 @@ def calc_lot_size(balance, risk_percent, sl_pips,pip_value_per_lot, min_lot, max
 
 
 
-def check_trade_result(mt5, result):
+def check_trade_result(mt5: Any, result: Any) -> bool:
     if result is None:
         print("❌ Order failed: result is None")
         print("MT5 last error:", mt5.last_error())
@@ -182,7 +182,7 @@ def check_trade_result(mt5, result):
     print("Price:", result.price)
     return True
 
-def get_symbol_volume_info(mt5, symbol):
+def get_symbol_volume_info(mt5: Any, symbol: str) -> Dict[str, float]:
     info = mt5.symbol_info(symbol)
     if info is None:
         raise RuntimeError("Failed to get symbol info")
@@ -195,13 +195,13 @@ def get_symbol_volume_info(mt5, symbol):
 
 
 
-def normalize_lot(lot, vol_min, vol_max, vol_step):
+def normalize_lot(lot: float, vol_min: float, vol_max: float, vol_step: float) -> float:
     lot = max(vol_min, min(lot, vol_max))
     lot = np.floor(lot / vol_step) * vol_step
     return round(lot, 2)
 
 
-def place_sell(mt5,symbol, lot, entry_price, sl, tp):
+def place_sell(mt5: Any, symbol: str, lot: float, entry_price: float, sl: float, tp: float) -> Any:
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
@@ -222,7 +222,7 @@ def place_sell(mt5,symbol, lot, entry_price, sl, tp):
 
 
 
-def place_buy(mt5,symbol, lot, entry_price, sl, tp):
+def place_buy(mt5: Any, symbol: str, lot: float, entry_price: float, sl: float, tp: float) -> Any:
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
@@ -244,7 +244,7 @@ def place_buy(mt5,symbol, lot, entry_price, sl, tp):
 
 
 
-def drop_duplicate(path):
+def drop_duplicate(path: str) -> None:
     all_df = pd.read_csv(path)
     all_df = all_df.drop_duplicates(keep='first')
     all_df = all_df.reset_index()
@@ -349,7 +349,7 @@ def analyze_results(trades: Sequence[Trade]) -> AnalysisResults:
 
 
 
-def get_pip_info(mt5, symbol):
+def get_pip_info(mt5: Any, symbol: str) -> Dict[str, float]:
     info = mt5.symbol_info(symbol)
     if info is None:
         raise RuntimeError(f"Symbol info not found for {symbol}")
@@ -377,7 +377,7 @@ def get_pip_info(mt5, symbol):
 
 
 LOG_FILE = "CSV_FILES/Trade_log.csv"
-def log_trade(symbol, direction, entry_price, SL, TP, lot_size, proba_up, proba_down, order_result):
+def log_trade(symbol: str, direction: str, entry_price: float, SL: float, TP: float, lot_size: float, proba_up: float, proba_down: float, order_result: Any) -> None:
     """
     Logs trade info to CSV.
     
@@ -416,9 +416,9 @@ def log_trade(symbol, direction, entry_price, SL, TP, lot_size, proba_up, proba_
 
 
 
-def check_account_info(mt5):
+def check_account_info(mt5: Any) -> None:
     account_info = mt5.account_info()
-    balance = account_info.balance
+    # balance = account_info.balance  # Removed: unused variable
     print("Account Number:", account_info.login)
     print("Balance:", account_info.balance)
     print("Equity:", account_info.equity)
