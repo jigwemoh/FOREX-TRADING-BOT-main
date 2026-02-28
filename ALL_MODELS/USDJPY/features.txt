@@ -1,0 +1,14 @@
+hl_diff
+oc_diff
+body_range_ratio
+volume_ma5
+volume_ratio
+log_return
+high_low_ratio
+close_open_ratio
+sma5
+sma20
+sma50
+rsi14
+macd
+atr14
