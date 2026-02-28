@@ -1,0 +1,126 @@
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+
+Training crypto models...
+
+============================================================
+Multi-Symbol ML Model Training
+============================================================
+Symbols: BTCUSD, ETHUSD, XRPUSD, LTCUSD, ADAUSD, SOLUSD, DOGEUSD
+
+  Loading MT5_5M_BTCUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training BTCUSD: 'Close'
+  Loading MT5_5M_ETHUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training ETHUSD: 'Close'
+  Loading MT5_5M_XRPUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training XRPUSD: 'Close'
+  Loading MT5_5M_LTCUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training LTCUSD: 'Close'
+  Loading MT5_5M_ADAUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training ADAUSD: 'Close'
+  Loading MT5_5M_SOLUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training SOLUSD: 'Close'
+  Loading MT5_5M_DOGEUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... 
+✗ Error training DOGEUSD: 'Close'
+
+============================================================
+Training Summary
+============================================================
+Successful: 0
+Failed: 7
+
+Failed symbols: BTCUSD, ETHUSD, XRPUSD, LTCUSD, ADAUSD, SOLUSD, DOGEUSD
+
+
+Training forex models...
+
+============================================================
+Multi-Symbol ML Model Training
+============================================================
+Symbols: EURUSD, GBPUSD, USDJPY
+
+  Loading MT5_5M_EURUSD_Exchange_Rate_Dataset.csv... ✓ Loaded 93,694 rows
+  Applying features... ✓
+
+============================================================
+Training EURUSD Model
+============================================================
+Data points: 93,453
+Features: 75
+Target distribution: {0: 47618, 1: 45835}
+Train set: 65,417 samples
+Test set: 28,036 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  ADX: 311.0000
+  Volume_Spike: 246.0000
+  Rolling_Std_Return: 243.0000
+  Rolling_Mean_Volume: 240.0000
+  Close_Position: 231.0000
+  Rolling_Mean_Return: 217.0000
+  dist_fib_618: 206.0000
+  Trend_Strength: 206.0000
+  MACD: 204.0000
+  Dist_to_Recent_Low: 194.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5163
+  AUC Score: 0.5176
+
+Classification Report:
+  Precision (Class 1): 0.5086
+  Recall (Class 1): 0.4091
+  F1-Score (Class 1): 0.4534
+  ✓ Saved to ../ALL_MODELS/EURUSD
+  Loading MT5_5M_BT_GBPUSD_Dataset.csv... ✓ Loaded 12,382 rows
+  Applying features... 
+✗ Error training GBPUSD: 'Date'
+  Loading MT5_5M_BT_USDJPY_Dataset.csv... ✓ Loaded 12,295 rows
+  Applying features... 
+✗ Error training USDJPY: 'Date'
+
+============================================================
+Training Summary
+============================================================
+Successful: 1
+Failed: 2
+
+Model Performance:
+        accuracy  auc_score  precision    recall  f1_score  n_features  n_samples
+EURUSD    0.5163   0.517646    0.50859  0.409061  0.453428        75.0    65417.0
+
+Failed symbols: GBPUSD, USDJPY
+
+✓ All done! Check ALL_MODELS/ directory for trained models.
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+

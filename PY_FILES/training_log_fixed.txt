@@ -1,0 +1,372 @@
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+
+Training crypto models...
+
+============================================================
+Multi-Symbol ML Model Training
+============================================================
+Symbols: BTCUSD, ETHUSD, XRPUSD, LTCUSD, ADAUSD, SOLUSD, DOGEUSD
+
+  Loading MT5_5M_BTCUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training BTCUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 108694, 0: 101347}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  Rolling_Std_Return: 329.0000
+  ADX: 322.0000
+  Volume_Spike: 304.0000
+  Rolling_Mean_Return: 282.0000
+  ATR: 261.0000
+  MACD: 257.0000
+  Trend_Strength: 251.0000
+  Dist_to_Recent_Low: 250.0000
+  Log_Return: 228.0000
+  Candle_Body: 226.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5108
+  AUC Score: 0.5007
+
+Classification Report:
+  Precision (Class 1): 0.5185
+  Recall (Class 1): 0.7680
+  F1-Score (Class 1): 0.6190
+  ✓ Saved to ../ALL_MODELS/BTCUSD
+  Loading MT5_5M_ETHUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training ETHUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 117334, 0: 92707}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  Rolling_Std_Return: 374.0000
+  ADX: 363.0000
+  Rolling_Mean_Return: 339.0000
+  Volume_Spike: 292.0000
+  MACD: 285.0000
+  RSI: 266.0000
+  Log_Return: 259.0000
+  Upper_Wick: 252.0000
+  STOCH: 227.0000
+  Dist_to_Recent_Low: 225.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5529
+  AUC Score: 0.4983
+
+Classification Report:
+  Precision (Class 1): 0.5586
+  Recall (Class 1): 0.9516
+  F1-Score (Class 1): 0.7040
+  ✓ Saved to ../ALL_MODELS/ETHUSD
+  Loading MT5_5M_XRPUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training XRPUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 110526, 0: 99515}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  Rolling_Std_Return: 365.0000
+  ADX: 322.0000
+  Volume_Spike: 286.0000
+  Rolling_Mean_Return: 285.0000
+  ATR: 276.0000
+  MACD: 254.0000
+  EMA_Slope: 224.0000
+  dist_fib_618: 223.0000
+  Dist_to_Recent_Low: 219.0000
+  Dist_to_Recent_High: 217.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5196
+  AUC Score: 0.5005
+
+Classification Report:
+  Precision (Class 1): 0.5273
+  Recall (Class 1): 0.8417
+  F1-Score (Class 1): 0.6484
+  ✓ Saved to ../ALL_MODELS/XRPUSD
+  Loading MT5_5M_LTCUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training LTCUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 107315, 0: 102726}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  ADX: 325.0000
+  Rolling_Std_Return: 308.0000
+  Volume_Spike: 296.0000
+  MACD: 284.0000
+  Rolling_Mean_Return: 283.0000
+  ATR: 260.0000
+  dist_fib_618: 250.0000
+  EMA_Slope: 225.0000
+  Trend_Strength: 219.0000
+  Dist_to_Rolling_Min: 219.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5025
+  AUC Score: 0.5003
+
+Classification Report:
+  Precision (Class 1): 0.5095
+  Recall (Class 1): 0.7049
+  F1-Score (Class 1): 0.5915
+  ✓ Saved to ../ALL_MODELS/LTCUSD
+  Loading MT5_5M_ADAUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training ADAUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 106262, 0: 103779}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  Rolling_Std_Return: 328.0000
+  ADX: 300.0000
+  Volume_Spike: 273.0000
+  Rolling_Mean_Return: 266.0000
+  ATR: 266.0000
+  MACD: 242.0000
+  dist_fib_618: 235.0000
+  Trend_Strength: 228.0000
+  STOCH: 219.0000
+  Dist_to_Recent_Low: 214.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5005
+  AUC Score: 0.5006
+
+Classification Report:
+  Precision (Class 1): 0.5056
+  Recall (Class 1): 0.5739
+  F1-Score (Class 1): 0.5375
+  ✓ Saved to ../ALL_MODELS/ADAUSD
+  Loading MT5_5M_SOLUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training SOLUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 107013, 0: 103028}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  Rolling_Std_Return: 358.0000
+  ADX: 293.0000
+  ATR: 289.0000
+  Rolling_Mean_Return: 283.0000
+  Volume_Spike: 272.0000
+  Trend_Strength: 254.0000
+  MACD: 250.0000
+  Dist_to_Recent_High: 225.0000
+  Dist_to_Rolling_Max: 217.0000
+  EMA_Slope: 208.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5001
+  AUC Score: 0.4938
+
+Classification Report:
+  Precision (Class 1): 0.5072
+  Recall (Class 1): 0.6673
+  F1-Score (Class 1): 0.5763
+  ✓ Saved to ../ALL_MODELS/SOLUSD
+  Loading MT5_5M_DOGEUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying features... ✓
+
+============================================================
+Training DOGEUSD Model
+============================================================
+Data points: 210,041
+Features: 75
+Target distribution: {1: 110491, 0: 99550}
+Train set: 147,028 samples
+Test set: 63,013 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  ADX: 352.0000
+  Rolling_Mean_Return: 292.0000
+  Volume_Spike: 287.0000
+  Rolling_Std_Return: 284.0000
+  MACD: 273.0000
+  Dist_to_Recent_High: 254.0000
+  Dist_to_Recent_Low: 244.0000
+  EMA_Slope: 244.0000
+  dist_fib_618: 241.0000
+  ATR: 224.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5174
+  AUC Score: 0.4996
+
+Classification Report:
+  Precision (Class 1): 0.5260
+  Recall (Class 1): 0.8371
+  F1-Score (Class 1): 0.6460
+  ✓ Saved to ../ALL_MODELS/DOGEUSD
+
+============================================================
+Training Summary
+============================================================
+Successful: 7
+Failed: 0
+
+Model Performance:
+         accuracy  auc_score  precision    recall  f1_score  n_features  n_samples
+BTCUSD   0.510815   0.500721   0.518466  0.768039  0.619045        75.0   147028.0
+ETHUSD   0.552886   0.498288   0.558591  0.951592  0.703955        75.0   147028.0
+XRPUSD   0.519639   0.500474   0.527291  0.841697  0.648391        75.0   147028.0
+LTCUSD   0.502499   0.500296   0.509497  0.704892  0.591475        75.0   147028.0
+ADAUSD   0.500468   0.500605   0.505555  0.573857  0.537545        75.0   147028.0
+SOLUSD   0.500135   0.493762   0.507173  0.667300  0.576321        75.0   147028.0
+DOGEUSD  0.517449   0.499630   0.525979  0.837094  0.646031        75.0   147028.0
+
+
+Training forex models...
+
+============================================================
+Multi-Symbol ML Model Training
+============================================================
+Symbols: EURUSD, GBPUSD, USDJPY
+
+  Loading MT5_5M_EURUSD_Exchange_Rate_Dataset.csv... ✓ Loaded 93,694 rows
+  Applying features... ✓
+
+============================================================
+Training EURUSD Model
+============================================================
+Data points: 93,453
+Features: 75
+Target distribution: {0: 47618, 1: 45835}
+Train set: 65,417 samples
+Test set: 28,036 samples
+
+Training LightGBM classifier...
+
+Top 10 features:
+  ADX: 311.0000
+  Volume_Spike: 246.0000
+  Rolling_Std_Return: 243.0000
+  Rolling_Mean_Volume: 240.0000
+  Close_Position: 231.0000
+  Rolling_Mean_Return: 217.0000
+  dist_fib_618: 206.0000
+  Trend_Strength: 206.0000
+  MACD: 204.0000
+  Dist_to_Recent_Low: 194.0000
+
+Retraining with top 76 features...
+
+Model Performance:
+  Accuracy: 0.5163
+  AUC Score: 0.5176
+
+Classification Report:
+  Precision (Class 1): 0.5086
+  Recall (Class 1): 0.4091
+  F1-Score (Class 1): 0.4534
+  ✓ Saved to ../ALL_MODELS/EURUSD
+  Loading MT5_5M_BT_GBPUSD_Dataset.csv... ✓ Loaded 12,382 rows
+  Applying features... 
+✗ Error training GBPUSD: 'Date'
+  Loading MT5_5M_BT_USDJPY_Dataset.csv... ✓ Loaded 12,295 rows
+  Applying features... 
+✗ Error training USDJPY: 'Date'
+
+============================================================
+Training Summary
+============================================================
+Successful: 1
+Failed: 2
+
+Model Performance:
+        accuracy  auc_score  precision    recall  f1_score  n_features  n_samples
+EURUSD    0.5163   0.517646    0.50859  0.409061  0.453428        75.0    65417.0
+
+Failed symbols: GBPUSD, USDJPY
+
+✓ All done! Check ALL_MODELS/ directory for trained models.
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+
