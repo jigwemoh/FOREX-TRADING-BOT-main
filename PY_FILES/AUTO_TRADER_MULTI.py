@@ -14,7 +14,7 @@ from pathlib import Path
 import time
 import joblib
 import json
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional, List, Any
 import logging
 from threading import Thread
 
@@ -337,6 +337,191 @@ class MultiSymbolAutoTrader:
         except Exception as e:
             logging.warning(f"Error getting positions for {symbol}: {e}")
             return 0
+    
+    def get_all_open_positions(self) -> List[Any]:
+        """Get ALL open positions on the MT5 account (bot and manual trades)"""
+        try:
+            all_positions = mt5.positions_get()
+            return list(all_positions) if all_positions else []
+        except Exception as e:
+            logging.warning(f"Error getting all positions: {e}")
+            return []
+    
+    def manage_all_trades(self):
+        """Manage ALL open trades on the account (bot-generated and manually opened)
+        
+        This includes:
+        - Applying trailing stops
+        - Checking risk thresholds
+        - Auto-closing based on risk management rules
+        - Logging all trade activity
+        """
+        try:
+            all_positions = self.get_all_open_positions()
+            if not all_positions:
+                return
+            
+            logging.info(f"Managing {len(all_positions)} total open position(s) on account")
+            
+            for pos in all_positions:
+                symbol = pos.symbol
+                position_id = pos.ticket
+                
+                try:
+                    symbol_info = mt5.symbol_info(symbol)
+                    if symbol_info is None:
+                        logging.warning(f"Cannot get info for {symbol}, skipping position {position_id}")
+                        continue
+                    
+                    tick = mt5.symbol_info_tick(symbol)
+                    if tick is None:
+                        logging.warning(f"Cannot get tick for {symbol}, skipping position {position_id}")
+                        continue
+                    
+                    current_price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
+                    profit_points = (current_price - pos.price_open) if pos.type == mt5.ORDER_TYPE_BUY else (pos.price_open - current_price)
+                    profit_pips = profit_points / symbol_info.point
+                    profit_loss = pos.profit
+                    
+                    # Log position status
+                    pos_type = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
+                    logging.info(
+                        f"[MANAGE] {symbol} {pos_type} | Ticket: {position_id} | "
+                        f"Entry: {pos.price_open:.5f} | Current: {current_price:.5f} | "
+                        f"Profit: {profit_pips:.1f}pips ({profit_loss:.2f}) | "
+                        f"SL: {pos.sl} | TP: {pos.tp}"
+                    )
+                    
+                    # Apply trailing stop
+                    self._update_trailing_stop(pos, symbol_info, current_price)
+                    
+                    # Check if position should be closed based on risk/profit
+                    self._check_position_close_conditions(pos, symbol_info, current_price, profit_loss, profit_pips)
+                    
+                except Exception as e:
+                    logging.error(f"Error managing position {position_id}: {e}")
+                    
+        except Exception as e:
+            logging.error(f"Error in manage_all_trades: {e}")
+    
+    def _update_trailing_stop(self, pos: Any, symbol_info: Any, current_price: float):
+        """Update trailing stop loss for a position (applies to all trades)"""
+        try:
+            trailing_stop_pips = 30  # Configurable via config.json if needed
+            trailing_stop_distance = trailing_stop_pips * symbol_info.point
+            
+            if pos.type == mt5.ORDER_TYPE_BUY:
+                # For buy positions, trailing stop moves up but never down
+                new_sl = current_price - trailing_stop_distance
+                if new_sl > pos.sl:
+                    self._modify_position_sl(pos, new_sl, symbol_info)
+                    
+            elif pos.type == mt5.ORDER_TYPE_SELL:
+                # For sell positions, trailing stop moves down but never up
+                new_sl = current_price + trailing_stop_distance
+                if new_sl < pos.sl:
+                    self._modify_position_sl(pos, new_sl, symbol_info)
+                    
+        except Exception as e:
+            logging.warning(f"Error updating trailing stop for ticket {pos.ticket}: {e}")
+    
+    def _modify_position_sl(self, pos: Any, new_sl: float, symbol_info: Any):
+        """Modify stop loss for a position"""
+        try:
+            request = {
+                "action": mt5.TRADE_ACTION_SLTP,
+                "position": pos.ticket,
+                "symbol": pos.symbol,
+                "sl": new_sl,
+                "tp": pos.tp,
+            }
+            
+            result = mt5.order_send(request)
+            if result.retcode == mt5.TRADE_RETCODE_DONE:
+                logging.info(f"[TRAILING STOP] Ticket {pos.ticket}: Updated SL to {new_sl:.5f}")
+            else:
+                logging.warning(f"Failed to update SL for ticket {pos.ticket}: {result.comment}")
+                
+        except Exception as e:
+            logging.error(f"Error modifying SL for ticket {pos.ticket}: {e}")
+    
+    def _check_position_close_conditions(self, pos: Any, symbol_info: Any, current_price: float, profit_loss: float, profit_pips: float):
+        """Check if a position should be closed based on conditions
+        
+        Conditions checked:
+        - Stop loss hit (should auto-close, but double-check)
+        - Take profit hit (should auto-close, but double-check)
+        - Excessive drawdown on account (risk management override)
+        """
+        try:
+            account_info = mt5.account_info()
+            if account_info is None:
+                return
+            
+            account_balance = account_info.balance
+            max_account_drawdown_percent = 5.0  # Configurable
+            max_drawdown = account_balance * (max_account_drawdown_percent / 100)
+            
+            # Check if account is in excessive drawdown
+            if account_info.profit < -max_drawdown:
+                logging.warning(
+                    f"Account drawdown excessive: {account_info.profit:.2f} (limit: {-max_drawdown:.2f}). "
+                    f"Closing position {pos.ticket}"
+                )
+                self._close_position(pos)
+                return
+            
+            # Close if hit stop loss (safety check)
+            if pos.sl > 0 and (
+                (pos.type == mt5.ORDER_TYPE_BUY and current_price <= pos.sl) or
+                (pos.type == mt5.ORDER_TYPE_SELL and current_price >= pos.sl)
+            ):
+                logging.info(f"Position {pos.ticket} hit stop loss, should be auto-closed by broker")
+                return
+            
+            # Close if hit take profit (safety check)
+            if pos.tp > 0 and (
+                (pos.type == mt5.ORDER_TYPE_BUY and current_price >= pos.tp) or
+                (pos.type == mt5.ORDER_TYPE_SELL and current_price <= pos.tp)
+            ):
+                logging.info(f"Position {pos.ticket} hit take profit, should be auto-closed by broker")
+                return
+            
+        except Exception as e:
+            logging.error(f"Error checking close conditions for ticket {pos.ticket}: {e}")
+    
+    def _close_position(self, pos: Any):
+        """Close a position (emergency or risk management)"""
+        try:
+            tick = mt5.symbol_info_tick(pos.symbol)
+            if tick is None:
+                logging.error(f"Cannot close ticket {pos.ticket}: no tick data")
+                return
+            
+            # Determine price
+            price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
+            
+            # Create close request
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": pos.symbol,
+                "volume": pos.volume,
+                "type": mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                "position": pos.ticket,
+                "price": price,
+                "comment": "Risk_Management_Close",
+                "type_filling": mt5.ORDER_FILLING_IOC,
+                "type_time": mt5.ORDER_TIME_GTC,
+            }
+            
+            result = mt5.order_send(request)
+            if result.retcode == mt5.TRADE_RETCODE_DONE:
+                logging.info(f"[CLOSE] Position {pos.ticket} closed at {price:.5f} (P&L: {pos.profit:.2f})")
+            else:
+                logging.error(f"Failed to close position {pos.ticket}: {result.comment}")
+                
+        except Exception as e:
+            logging.error(f"Error closing position {pos.ticket}: {e}")
             
     def open_trade(self, symbol: str, signal: int, confidence: float):
         """Open a trade for a specific symbol"""
@@ -396,30 +581,6 @@ class MultiSymbolAutoTrader:
         except Exception as e:
             logging.error(f"Error opening trade for {symbol}: {e}")
             
-    def check_trailing_stop(self, symbol: str):
-        """Check and update trailing stops for a symbol"""
-        try:
-            positions = mt5.positions_get(symbol=symbol)
-            if not positions:
-                return
-                
-            for pos in positions:
-                symbol_info = mt5.symbol_info(symbol)
-                if symbol_info is None:
-                    continue
-                
-                current_price = mt5.symbol_info_tick(symbol).ask if pos.type == mt5.ORDER_TYPE_BUY else mt5.symbol_info_tick(symbol).bid
-                
-                # Trailing stop logic (simplified)
-                if pos.type == mt5.ORDER_TYPE_BUY and current_price > pos.price_open + (30 * symbol_info.point):
-                    new_sl = current_price - (30 * symbol_info.point)
-                    if new_sl > pos.sl:
-                        # Update stop loss
-                        pass
-                        
-        except Exception as e:
-            logging.warning(f"Error checking trailing stop for {symbol}: {e}")
-            
     def run_symbol(self, symbol: str, check_interval: int):
         """Trading loop for a specific symbol"""
         logging.info(f"[{symbol}] Starting trader...")
@@ -441,7 +602,7 @@ class MultiSymbolAutoTrader:
                 
                 logging.info(f"[{symbol}] ML Signal: {ml_signal} (conf: {ml_confidence:.2f}) | SMC Signal: {smc_signal}")
                 
-                # Combined signal logic
+                # Combined signal logic - only open NEW trades for configured symbols
                 open_positions = self.get_open_positions(symbol)
                 if open_positions < self.max_positions:
                     if self.use_ml:
@@ -451,8 +612,8 @@ class MultiSymbolAutoTrader:
                         if smc_signal != 0:
                             self.open_trade(symbol, smc_signal, 0.5)
                 
-                # Check trailing stops
-                self.check_trailing_stop(symbol)
+                # Manage ALL open trades (bot-generated and manual)
+                self.manage_all_trades()
                 
                 # Wait for next check
                 time.sleep(check_interval)
