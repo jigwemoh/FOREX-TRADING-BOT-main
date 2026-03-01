@@ -43,14 +43,16 @@ class TradeQualityTrainer:
     
     def __init__(
         self,
-        data_dir: str = "../CSV_FILES",
-        models_dir: str = "../ALL_MODELS",
+        data_dir: Optional[str] = None,
+        models_dir: Optional[str] = None,
         min_threshold: float = 0.50,
         max_threshold: float = 0.75,
         threshold_step: float = 0.05
     ):
-        self.data_dir = Path(data_dir)
-        self.models_dir = Path(models_dir)
+        # Use absolute paths relative to script location
+        script_dir = Path(__file__).parent.parent
+        self.data_dir = Path(data_dir) if data_dir else (script_dir / "CSV_FILES")
+        self.models_dir = Path(models_dir) if models_dir else (script_dir / "ALL_MODELS")
         self.models_dir.mkdir(parents=True, exist_ok=True)
         
         # Threshold optimization range
@@ -408,14 +410,14 @@ class TradeQualityTrainer:
             objective="binary:logistic",
             eval_metric="logloss",
             random_state=42,
-            n_jobs=-1
+            n_jobs=-1,
+            early_stopping_rounds=30
         )
         
         model.fit(
             X_train_scaled,
             y_train,
             eval_set=[(X_val_scaled, y_val)],
-            early_stopping_rounds=30,
             verbose=False
         )
         
