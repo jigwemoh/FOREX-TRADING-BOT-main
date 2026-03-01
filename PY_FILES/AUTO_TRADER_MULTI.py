@@ -15,7 +15,7 @@ from pathlib import Path
 import time
 import joblib
 import json
-from typing import Dict, Tuple, Optional, List, Any
+from typing import Dict, Tuple, Optional, List, Any, Set
 import logging
 from threading import Thread
 
@@ -50,6 +50,8 @@ class MultiSymbolAutoTrader:
         self.models: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
         self.scalers: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
         self.model_features: Dict[str, List[str]] = {sym: [] for sym in self.symbols}
+        self._feature_gap_logged: Set[str] = set()
+        self._ml_diag_logged_symbols: Set[str] = set()
         self.is_running = False
         
         # MT5 timeframe mapping
@@ -125,6 +127,8 @@ class MultiSymbolAutoTrader:
         self.models = {sym: {} for sym in self.symbols}
         self.scalers = {sym: {} for sym in self.symbols}
         self.model_features = {sym: [] for sym in self.symbols}
+        self._feature_gap_logged = set()
+        self._ml_diag_logged_symbols = set()
 
         return available, skipped
         
@@ -189,6 +193,9 @@ class MultiSymbolAutoTrader:
                     loaded_features = joblib.load(features_path)
                     if isinstance(loaded_features, list):
                         self.model_features[symbol] = [str(feature) for feature in loaded_features]
+                        logging.info(
+                            f"Loaded feature metadata: {symbol} ({len(self.model_features[symbol])} features)"
+                        )
                     else:
                         logging.warning(f"Invalid features list for {symbol}, using empty list")
 
@@ -356,6 +363,14 @@ class MultiSymbolAutoTrader:
                 logging.warning(f"No saved feature list for {symbol}")
                 return 0, 0.0
 
+            diag_key = f"{symbol}:{target_tf}"
+            if diag_key not in self._ml_diag_logged_symbols:
+                logging.info(
+                    f"[ML CONFIG] {symbol} | timeframe={self.timeframe} ({target_tf}) | "
+                    f"threshold={self.ml_threshold:.2f} | required_features={len(required_features)}"
+                )
+                self._ml_diag_logged_symbols.add(diag_key)
+
             latest = df.dropna().iloc[-1:]
             if latest.empty:
                 return 0, 0.0
@@ -364,8 +379,14 @@ class MultiSymbolAutoTrader:
             for feature in missing_features:
                 latest[feature] = 0.0
 
-            if len(missing_features) > 0:
-                logging.debug(f"{symbol}: filled {len(missing_features)} missing features with 0.0")
+            if len(missing_features) > 0 and diag_key not in self._feature_gap_logged:
+                sample_missing = ", ".join(missing_features[:8])
+                suffix = " ..." if len(missing_features) > 8 else ""
+                logging.warning(
+                    f"[ML FEATURE GAP] {symbol} missing {len(missing_features)} features; "
+                    f"filled with 0.0 | sample: {sample_missing}{suffix}"
+                )
+                self._feature_gap_logged.add(diag_key)
 
             features = latest[required_features].apply(pd.to_numeric, errors='coerce').fillna(0.0)
 
@@ -723,6 +744,11 @@ class MultiSymbolAutoTrader:
         logging.info(f"Starting multi-symbol auto trader")
         logging.info(f"Symbols: {', '.join(self.symbols)}")
         logging.info(f"Risk: {self.risk_percent}% | Max positions per symbol: {self.max_positions} | ML: {self.use_ml}")
+        if self.use_ml:
+            logging.info(
+                f"ML runtime settings: timeframe={self.timeframe} | "
+                f"ml_threshold={self.ml_threshold:.2f}"
+            )
         
         self.is_running = True
         threads = []
