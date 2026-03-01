@@ -10,6 +10,7 @@ except ImportError:
     # Fallback to mock for development on non-Windows systems
     import MT5_MOCK as mt5  # type: ignore
 import pandas as pd
+import numpy as np
 from pathlib import Path
 import time
 import joblib
@@ -37,15 +38,18 @@ class MultiSymbolAutoTrader:
         timeframe: str = "1H",
         risk_percent: float = 1.0,
         max_positions: int = 3,
-        use_ml: bool = True
+        use_ml: bool = True,
+        ml_threshold: float = 0.55
     ):
         self.symbols = symbols or ["EURUSD"]
         self.timeframe = timeframe
         self.risk_percent = risk_percent
         self.max_positions = max_positions
         self.use_ml = use_ml
+        self.ml_threshold = ml_threshold
         self.models: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
         self.scalers: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
+        self.model_features: Dict[str, List[str]] = {sym: [] for sym in self.symbols}
         self.is_running = False
         
         # MT5 timeframe mapping
@@ -120,6 +124,7 @@ class MultiSymbolAutoTrader:
         self.symbols = available
         self.models = {sym: {} for sym in self.symbols}
         self.scalers = {sym: {} for sym in self.symbols}
+        self.model_features = {sym: [] for sym in self.symbols}
 
         return available, skipped
         
@@ -179,6 +184,14 @@ class MultiSymbolAutoTrader:
                 continue
                 
             try:
+                features_path = model_dir / "features.joblib"
+                if features_path.exists():
+                    loaded_features = joblib.load(features_path)
+                    if isinstance(loaded_features, list):
+                        self.model_features[symbol] = [str(feature) for feature in loaded_features]
+                    else:
+                        logging.warning(f"Invalid features list for {symbol}, using empty list")
+
                 # Load models for different timeframes (intraday and daily/higher)
                 timeframes = ["T_5M", "T_10M", "T_15M", "T_20M", "T_30M", "T_1H", "T_4H", "T_1D", "T_1W", "T_1M"]
                 for tf in timeframes:
@@ -233,19 +246,28 @@ class MultiSymbolAutoTrader:
     def calculate_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate technical features for ML prediction"""
         try:
+            df = df.copy()
+
             # OHLC ratios
             df['HL_ratio'] = df['High'] / df['Low']
             df['OC_ratio'] = df['Open'] / df['Close']
+            df['HL_Ratio'] = df['HL_ratio']
+            df['OC_Ratio'] = df['OC_ratio']
             
             # Moving averages
             df['SMA_5'] = df['Close'].rolling(5).mean()
             df['SMA_20'] = df['Close'].rolling(20).mean()
             df['SMA_50'] = df['Close'].rolling(50).mean()
+            df['EMA_12'] = df['Close'].ewm(span=12).mean()
+            df['EMA_26'] = df['Close'].ewm(span=26).mean()
             
             # Price relative to SMAs
             df['Close_SMA5'] = df['Close'] / df['SMA_5']
             df['Close_SMA20'] = df['Close'] / df['SMA_20']
             df['SMA5_SMA20'] = df['SMA_5'] / df['SMA_20']
+            df['Range'] = df['High'] - df['Low']
+            df['Body'] = (df['Close'] - df['Open']).abs()
+            df['Body_Range'] = df['Body'] / df['Range'].replace(0, np.nan)
             
             # RSI
             delta = df['Close'].diff()
@@ -260,6 +282,8 @@ class MultiSymbolAutoTrader:
             df['MACD'] = ema12 - ema26
             df['MACD_signal'] = df['MACD'].ewm(span=9).mean()
             df['MACD_hist'] = df['MACD'] - df['MACD_signal']
+            df['Signal'] = df['MACD_signal']
+            df['Histogram'] = df['MACD_hist']
             
             # Bollinger Bands
             sma = df['Close'].rolling(20).mean()
@@ -267,6 +291,28 @@ class MultiSymbolAutoTrader:
             df['BB_upper'] = sma + (std * 2)
             df['BB_lower'] = sma - (std * 2)
             df['BB_position'] = (df['Close'] - df['BB_lower']) / (df['BB_upper'] - df['BB_lower'])
+            df['BB_Middle'] = sma
+            df['BB_Std'] = std
+            df['BB_Upper'] = df['BB_upper']
+            df['BB_Lower'] = df['BB_lower']
+
+            tr1 = df['High'] - df['Low']
+            tr2 = (df['High'] - df['Close'].shift(1)).abs()
+            tr3 = (df['Low'] - df['Close'].shift(1)).abs()
+            df['TR'] = np.maximum(tr1, np.maximum(tr2, tr3))
+            df['ATR'] = df['TR'].rolling(14).mean()
+
+            df['Volume_MA'] = df['Volume'].rolling(20).mean()
+            df['Volume_Ratio'] = df['Volume'] / df['Volume_MA'].replace(0, np.nan)
+
+            df['Trend'] = np.where(df['SMA_20'] > df['SMA_50'], 1, -1)
+            df['Price_Above_SMA'] = (df['Close'] > df['SMA_50']).astype(int)
+
+            df['Log_Return'] = np.log(df['Close'] / df['Close'].shift(1))
+            df['Return_MA'] = df['Log_Return'].rolling(5).mean()
+            df['Return_Std'] = df['Log_Return'].rolling(5).std()
+
+            df = df.replace([np.inf, -np.inf], np.nan)
             
             return df
             
@@ -280,28 +326,75 @@ class MultiSymbolAutoTrader:
             return 0, 0.0
             
         try:
-            # Use most recent features
-            features = df.dropna().iloc[-1:][['HL_ratio', 'OC_ratio', 'SMA_5', 'SMA_20', 'RSI', 'MACD', 'MACD_signal']]
-            
-            if len(features) == 0:
-                return 0, 0.0
-            
-            # Get the first available model and scaler
-            if self.models[symbol]:
-                first_tf = list(self.models[symbol].keys())[0]
+            target_tf_map = {
+                "5M": "T_5M",
+                "10M": "T_10M",
+                "15M": "T_15M",
+                "20M": "T_20M",
+                "30M": "T_30M",
+                "1H": "T_1H",
+                "4H": "T_4H",
+                "1D": "T_1D",
+                "1W": "T_1W",
+                "1M_TF": "T_1M",
+                "1M": "T_1M",
+            }
+
+            target_tf = target_tf_map.get(self.timeframe.upper(), "T_1H")
+            model = self.models[symbol].get(target_tf)
+            scaler = self.scalers[symbol].get(target_tf)
+
+            if model is None or scaler is None:
+                first_tf = next(iter(self.models[symbol]), None)
+                if first_tf is None:
+                    return 0, 0.0
                 model = self.models[symbol][first_tf]
                 scaler = self.scalers[symbol][first_tf]
-                
-                # Scale features
-                features_scaled = scaler.transform(features)
-                
-                # Predict
-                prediction = model.predict(features_scaled)[0]
-                confidence = abs(prediction)
-                signal = 1 if prediction > 0 else -1 if prediction < 0 else 0
-                
-                return signal, confidence
-                
+
+            required_features = self.model_features.get(symbol, [])
+            if not required_features:
+                logging.warning(f"No saved feature list for {symbol}")
+                return 0, 0.0
+
+            latest = df.dropna().iloc[-1:]
+            if latest.empty:
+                return 0, 0.0
+
+            missing_features = [feature for feature in required_features if feature not in latest.columns]
+            for feature in missing_features:
+                latest[feature] = 0.0
+
+            if len(missing_features) > 0:
+                logging.debug(f"{symbol}: filled {len(missing_features)} missing features with 0.0")
+
+            features = latest[required_features].apply(pd.to_numeric, errors='coerce').fillna(0.0)
+
+            if features.empty:
+                return 0, 0.0
+
+            features_scaled = scaler.transform(features)
+
+            if hasattr(model, "predict_proba"):
+                probabilities = np.asarray(model.predict_proba(features_scaled))[0]
+                if probabilities.shape[0] < 2:
+                    return 0, 0.0
+
+                prob_down = float(probabilities[0])
+                prob_up = float(probabilities[1])
+                confidence = max(prob_up, prob_down)
+
+                if prob_up >= self.ml_threshold and prob_up > prob_down:
+                    return 1, confidence
+                if prob_down >= self.ml_threshold and prob_down > prob_up:
+                    return -1, confidence
+
+                return 0, confidence
+
+            prediction = int(model.predict(features_scaled)[0])
+            if prediction == 1:
+                return 1, 0.5
+            if prediction == 0:
+                return -1, 0.5
             return 0, 0.0
             
         except Exception as e:
@@ -606,7 +699,7 @@ class MultiSymbolAutoTrader:
                 open_positions = self.get_open_positions(symbol)
                 if open_positions < self.max_positions:
                     if self.use_ml:
-                        if ml_signal != 0 and ml_confidence > 0.6:
+                        if ml_signal != 0 and ml_confidence >= self.ml_threshold:
                             self.open_trade(symbol, ml_signal, ml_confidence)
                     else:
                         if smc_signal != 0:
@@ -702,6 +795,7 @@ if __name__ == "__main__":
     RISK_PERCENT = float(trading_cfg.get("risk_percent", 1.0))
     MAX_POSITIONS = int(trading_cfg.get("max_positions", 3))
     USE_ML = bool(trading_cfg.get("use_ml", True))
+    ML_THRESHOLD = float(trading_cfg.get("ml_threshold", 0.55))
     CHECK_INTERVAL = int(execution_cfg.get("check_interval", 300))
     
     # Create trader
@@ -710,7 +804,8 @@ if __name__ == "__main__":
         timeframe=TIMEFRAME,
         risk_percent=RISK_PERCENT,
         max_positions=MAX_POSITIONS,
-        use_ml=USE_ML
+        use_ml=USE_ML,
+        ml_threshold=ML_THRESHOLD
     )
     
     # Initialize MT5
