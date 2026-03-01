@@ -3,6 +3,8 @@ pandas
 scikit-learn
 lightgbm
 catboost
+xgboost
+shap
 joblib
 ta
 MetaTrader5
