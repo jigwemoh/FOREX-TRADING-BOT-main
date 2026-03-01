@@ -76,6 +76,52 @@ class MultiSymbolAutoTrader:
             r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
             r"C:\Program Files (x86)\MetaTrader 5\terminal.exe",
         ]
+
+    @staticmethod
+    def discover_symbols_from_models(models_root: Path = Path("../ALL_MODELS")) -> List[str]:
+        """Discover tradable symbols from model folders only."""
+        if not models_root.exists():
+            return []
+
+        symbols: List[str] = []
+        for item in sorted(models_root.iterdir()):
+            if not item.is_dir():
+                continue
+            if item.name.startswith("."):
+                continue
+
+            has_model_files = any(item.glob("T_*.joblib"))
+            has_feature_file = (item / "features.joblib").exists()
+            if has_model_files and has_feature_file:
+                symbols.append(item.name)
+
+        return symbols
+
+    def filter_symbols_by_mt5_availability(self) -> Tuple[List[str], List[str]]:
+        """Keep only symbols that are available in the connected MT5 terminal."""
+        available: List[str] = []
+        skipped: List[str] = []
+
+        for symbol in self.symbols:
+            try:
+                symbol_info = mt5.symbol_info(symbol)
+                if symbol_info is None:
+                    skipped.append(symbol)
+                    continue
+
+                if not mt5.symbol_select(symbol, True):
+                    skipped.append(symbol)
+                    continue
+
+                available.append(symbol)
+            except Exception:
+                skipped.append(symbol)
+
+        self.symbols = available
+        self.models = {sym: {} for sym in self.symbols}
+        self.scalers = {sym: {} for sym in self.symbols}
+
+        return available, skipped
         
     def initialize_mt5(self, login: int, password: str, server: str, terminal_path: Optional[str] = None) -> bool:
         """Initialize MT5 connection"""
@@ -481,12 +527,14 @@ if __name__ == "__main__":
         print("Run: python CONFIG_MANAGER.py create")
         exit(1)
 
-    # Support both single symbol (legacy) and multiple symbols
-    if "symbols" in trading_cfg:
-        symbols_list = trading_cfg.get("symbols", ["EURUSD"])
-    else:
-        # Fallback for old config format
-        symbols_list = [trading_cfg.get("symbol", "EURUSD")]
+    # Always trade symbols discovered from ALL_MODELS folders
+    symbols_list = MultiSymbolAutoTrader.discover_symbols_from_models()
+    if not symbols_list:
+        print("No valid model folders found in ../ALL_MODELS")
+        print("Train models first: python TRAIN_CRYPTO_MODELS.py")
+        exit(1)
+
+    print(f"Using model-folder symbols only: {', '.join(symbols_list)}")
     
     TIMEFRAME = str(trading_cfg.get("timeframe", "1H")).upper()
     RISK_PERCENT = float(trading_cfg.get("risk_percent", 1.0))
@@ -507,6 +555,15 @@ if __name__ == "__main__":
     if not trader.initialize_mt5(MT5_LOGIN, MT5_PASSWORD, MT5_SERVER, MT5_TERMINAL_PATH):
         print("Failed to initialize MT5")
         exit(1)
+
+    # Keep only symbols available on the connected broker account
+    available_symbols, skipped_symbols = trader.filter_symbols_by_mt5_availability()
+    if skipped_symbols:
+        print(f"Skipping unavailable broker symbols: {', '.join(skipped_symbols)}")
+    if not available_symbols:
+        print("No model-folder symbols are available on this broker account")
+        exit(1)
+    print(f"Trading available model symbols: {', '.join(available_symbols)}")
         
     # Load models
     if not trader.load_models():
