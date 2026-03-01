@@ -22,11 +22,6 @@ warnings.filterwarnings('ignore')
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-try:
-    from func import apply_features as external_apply_features
-except ImportError:
-    external_apply_features = None
-
 
 class EURUSDTrainer:
     """Professional-grade XGBoost training for EURUSD with complete data"""
@@ -254,7 +249,7 @@ class EURUSDTrainer:
                 if trade_count == 0:
                     continue
                 
-                tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+                _, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
                 win_rate = tp / (tp + fp) if (tp + fp) > 0 else 0
                 loss_rate = fn / (fn + tp) if (fn + tp) > 0 else 0
                 expectancy = (win_rate * 2.0) - (loss_rate * 1.0)
@@ -370,7 +365,7 @@ if __name__ == "__main__":
     # Train
     model, scaler, features, metrics = trainer.train_model(df)
     
-    if model is not None:
+    if model is not None and metrics is not None:
         trainer.save_model(model, scaler, features, metrics)
         print("\n✓ EURUSD training complete!")
         print(f"Ready for live trading with optimal_threshold={metrics['optimal_threshold']:.2f}")

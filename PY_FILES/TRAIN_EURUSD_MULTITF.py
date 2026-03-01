@@ -12,7 +12,7 @@ import numpy as np
 import joblib
 import warnings
 import json
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Optional, Any
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, log_loss, confusion_matrix
 import xgboost as xgb
@@ -245,7 +245,7 @@ class EURUSDMultiTimeframeTrainer:
                 if y_pred.sum() == 0:
                     continue
                 
-                tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+                _, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
                 win_rate = tp / (tp + fp) if (tp + fp) > 0 else 0
                 loss_rate = fn / (fn + tp) if (fn + tp) > 0 else 0
                 expectancy = (win_rate * 2.0) - (loss_rate * 1.0)
@@ -289,13 +289,13 @@ class EURUSDMultiTimeframeTrainer:
                 }
             }
             
-            return metadata[tf_name]
+            return metadata.get(tf_name, {})
             
         except Exception as e:
             print(f"✗ Error: {e}")
             import traceback
             traceback.print_exc()
-            return None
+            return {}
     
     def train_all_timeframes(self) -> Dict[str, Dict[str, Any]]:
         """Train models for all timeframes"""

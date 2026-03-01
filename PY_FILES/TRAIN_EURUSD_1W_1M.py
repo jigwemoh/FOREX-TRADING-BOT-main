@@ -10,12 +10,10 @@ import pandas as pd
 import numpy as np
 import joblib
 import warnings
-import json
 from typing import Dict, Optional, Any
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, log_loss, confusion_matrix
 import xgboost as xgb
-import shap
 
 warnings.filterwarnings('ignore')
 
@@ -249,12 +247,13 @@ class EURUSDHighTFTrainer:
             best_expectancy = 0
             
             if len(X_test) > 10:
+                y_test_proba = model.predict_proba(X_test_scaled)[:, 1]
                 for threshold in np.arange(0.50, 0.76, 0.05):
                     y_pred = (y_test_proba >= threshold).astype(int)
                     if y_pred.sum() == 0:
                         continue
                     
-                    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+                    _, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
                     win_rate = tp / (tp + fp) if (tp + fp) > 0 else 0
                     loss_rate = fn / (fn + tp) if (fn + tp) > 0 else 0
                     expectancy = (win_rate * 2.0) - (loss_rate * 1.0)

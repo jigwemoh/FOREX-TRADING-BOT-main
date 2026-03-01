@@ -288,7 +288,7 @@ class FastTradeQualityTrainer:
                 if trade_count == 0:
                     continue
                 
-                tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+                _, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
                 win_rate = tp / (tp + fp) if (tp + fp) > 0 else 0
                 loss_rate = fn / (fn + tp) if (fn + tp) > 0 else 0
                 

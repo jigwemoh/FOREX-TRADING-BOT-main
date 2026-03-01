@@ -4,30 +4,20 @@ Fetch EURUSD weekly and monthly real data from yfinance and other sources
 """
 
 import pandas as pd
-import numpy as np
-import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+
+from typing import Optional
 
 try:
     import yfinance as yf
-    yfinance_available = True
 except ImportError:
-    yfinance_available = False
     print("Installing yfinance...")
     import os
     os.system("pip install yfinance -q")
     import yfinance as yf
-    yfinance_available = True
-
-try:
-    from pandas_datareader import data as pdr
-    pdr_available = True
-except ImportError:
-    pdr_available = False
 
 
-def fetch_eurusd_from_yfinance(interval: str = '1wk', period: str = '10y') -> pd.DataFrame:
+def fetch_eurusd_from_yfinance(interval: str = '1wk', period: str = '10y') -> Optional[pd.DataFrame]:
     """
     Fetch EURUSD data from Yahoo Finance
     Intervals: '1m', '5m', '15m', '30m', '60m', '1d', '1wk', '1mo'
@@ -59,7 +49,7 @@ def fetch_eurusd_from_yfinance(interval: str = '1wk', period: str = '10y') -> pd
         return None
 
 
-def fetch_eurusd_monthly_alternative() -> pd.DataFrame:
+def fetch_eurusd_monthly_alternative() -> Optional[pd.DataFrame]:
     """
     Fetch monthly EURUSD from alternative source
     Uses Yahoo Finance 1-month interval
@@ -85,7 +75,7 @@ def fetch_eurusd_monthly_alternative() -> pd.DataFrame:
         return None
 
 
-def aggregate_5m_to_weekly(df_5m: pd.DataFrame) -> pd.DataFrame:
+def aggregate_5m_to_weekly(df_5m: pd.DataFrame) -> Optional[pd.DataFrame]:
     """Aggregate 5M data to weekly OHLCV"""
     print("  Aggregating 5M to weekly...", end=" ", flush=True)
     
@@ -117,7 +107,7 @@ def aggregate_5m_to_weekly(df_5m: pd.DataFrame) -> pd.DataFrame:
         return None
 
 
-def aggregate_5m_to_monthly(df_5m: pd.DataFrame) -> pd.DataFrame:
+def aggregate_5m_to_monthly(df_5m: pd.DataFrame) -> Optional[pd.DataFrame]:
     """Aggregate 5M data to monthly OHLCV"""
     print("  Aggregating 5M to monthly...", end=" ", flush=True)
     
@@ -200,7 +190,7 @@ def main():
         df_weekly = df_weekly.sort_values('Date')
         print(f"  Final: {len(df_weekly):,} unique bars\n")
     elif df_weekly_yf is not None:
-        df_weekly = df_weekly_yf
+        df_weekly: Optional[pd.DataFrame] = df_weekly_yf
         print()
     elif df_weekly_agg is not None:
         df_weekly = df_weekly_agg
@@ -231,7 +221,7 @@ def main():
         df_monthly = df_monthly.sort_values('Date')
         print(f"  Final: {len(df_monthly):,} unique bars\n")
     elif df_monthly_yf is not None:
-        df_monthly = df_monthly_yf
+        df_monthly: Optional[pd.DataFrame] = df_monthly_yf
         print()
     elif df_monthly_agg is not None:
         df_monthly = df_monthly_agg
