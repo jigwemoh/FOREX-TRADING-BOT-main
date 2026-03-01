@@ -28,17 +28,104 @@ if (!(Test-Path $RepoPath)) {
 
 Set-Location $RepoPath
 
+function Protect-ConfigFile {
+    <#
+    .SYNOPSIS
+        Safely backup config.json before git operations to prevent merge conflicts
+    .DESCRIPTION
+        If config.json exists and is untracked, backs it up with a timestamp.
+        This prevents "untracked working tree files would be overwritten by merge" errors.
+    .OUTPUTS
+        [string] Path to backup file if created, $null otherwise
+    #>
+    param(
+        [string]$ConfigFile = "config.json"
+    )
+
+    if (-not (Test-Path $ConfigFile)) {
+        return $null
+    }
+
+    # Check if file is untracked (not in git index)
+    $gitStatus = git status --porcelain $ConfigFile 2>$null
+    if ($gitStatus -like "??*") {
+        # File is untracked; back it up
+        $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+        $backupFile = "$ConfigFile.backup.$timestamp"
+        Copy-Item $ConfigFile $backupFile -Force
+        Write-Host "[INFO] Config file backed up to $backupFile"
+        return $backupFile
+    }
+
+    return $null
+}
+
+function Restore-ConfigFile {
+    <#
+    .SYNOPSIS
+        Restore config.json from a backup file
+    #>
+    param(
+        [string]$BackupFile,
+        [string]$TargetFile = "config.json"
+    )
+
+    if ($BackupFile -and (Test-Path $BackupFile)) {
+        Copy-Item $BackupFile $TargetFile -Force
+        Write-Host "[INFO] Config file restored from $BackupFile"
+    }
+}
+
 function Invoke-SafeGitPull {
     param(
         [string]$TargetBranch
     )
 
+    # Step 1: Protect config.json if it exists and is untracked
+    $configBackup = Protect-ConfigFile
+
+    # Step 2: Attempt git pull
     git pull origin $TargetBranch
     if ($LASTEXITCODE -eq 0) {
+        # Pull succeeded; restore config if needed
+        if ($configBackup) {
+            Restore-ConfigFile -BackupFile $configBackup
+        }
         return $true
     }
 
-    Write-Host "[WARN] git pull failed (likely untracked-file conflicts). Creating backup and retrying..."
+    # Step 3: Pull failed; check if config.json was the culprit
+    Write-Host "[WARN] git pull failed. Analyzing issue..."
+    $mergeError = git status 2>&1 | Select-String "untracked working tree files"
+    
+    if ($mergeError -or $configBackup) {
+        Write-Host "[INFO] Untracked file conflict detected. Cleaning up and retrying..."
+
+        # Remove untracked files that would block merge
+        if (Test-Path "config.json") {
+            Remove-Item "config.json" -Force
+            Write-Host "[INFO] Removed untracked config.json"
+        }
+
+        # Perform hard reset and pull
+        git reset --hard
+        git clean -fd
+        if (Test-Path ".DS_Store") { Remove-Item ".DS_Store" -Force -ErrorAction SilentlyContinue }
+
+        # Retry pull
+        git pull origin $TargetBranch
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[INFO] Git pull succeeded after cleanup"
+            # Restore config.json from backup
+            if ($configBackup) {
+                Restore-ConfigFile -BackupFile $configBackup
+            }
+            return $true
+        }
+    }
+
+    # If we get here, something else went wrong; create full backup
+    Write-Host "[WARN] Untracked-file conflicts detected. Creating full backup and retrying..."
 
     $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
     $backupDir = "C:\FOREX-BOT-BACKUPS\PRE_PULL_$timestamp"
