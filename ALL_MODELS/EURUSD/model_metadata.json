@@ -38,5 +38,21 @@
     "expectancy": 0.0,
     "n_features": 24,
     "n_bars": 326
+  },
+  "1W": {
+    "auc_score": 0.4925,
+    "log_loss": 0.7122795696534864,
+    "optimal_threshold": 0.5,
+    "expectancy": 0.5128205128205128,
+    "n_features": 25,
+    "n_bars": 524
+  },
+  "1M": {
+    "auc_score": NaN,
+    "log_loss": 0.861678994015118,
+    "optimal_threshold": 0.5,
+    "expectancy": 0.0,
+    "n_features": 25,
+    "n_bars": 181
   }
 }
