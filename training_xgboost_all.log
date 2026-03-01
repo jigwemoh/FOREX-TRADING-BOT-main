@@ -1,0 +1,27 @@
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+
+
+================================================================================
+XGBOOST TRADE QUALITY - COMPREHENSIVE TRAINING
+================================================================================
+
+Training crypto models with XGBoost (trade quality)...
+
+============================================================
+XGBoost Trade Quality Training
+============================================================
+Symbols: BTCUSD, ETHUSD, XRPUSD, LTCUSD, ADAUSD, SOLUSD, DOGEUSD
+
+  Loading MT5_5M_BTCUSD_Dataset.csv... ✓ Loaded 210,240 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 

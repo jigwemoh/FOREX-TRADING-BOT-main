@@ -1,0 +1,9 @@
+{
+  "auc_score": 0.5,
+  "log_loss": 0.7055715436164631,
+  "optimal_threshold": 0.5,
+  "expectancy": 0.6251012145748988,
+  "win_rate": 0.5417004048582995,
+  "n_features": 76,
+  "n_train": 17283
+}

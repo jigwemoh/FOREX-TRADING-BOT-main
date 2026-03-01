@@ -1,0 +1,111 @@
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+
+
+================================================================================
+FAST XGBOOST TRADE QUALITY - ALL PAIRS
+================================================================================
+  Loading MT5_5M_BTCUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training BTCUSD: 0
+  Loading MT5_5M_ETHUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training ETHUSD: 0
+  Loading MT5_5M_XRPUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training XRPUSD: 0
+  Loading MT5_5M_LTCUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training LTCUSD: 0
+  Loading MT5_5M_ADAUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training ADAUSD: 0
+  Loading MT5_5M_SOLUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training SOLUSD: 0
+  Loading MT5_5M_DOGEUSD_Dataset.csv... ✓ Loaded 50,000 rows (sampled from 210240 total)
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training DOGEUSD: 0
+  Loading MT5_5M_BT_EURUSD_Dataset.csv... ✓ Loaded 12,381 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training EURUSD: 0
+  Loading MT5_5M_BT_GBPUSD_Dataset.csv... ✓ Loaded 12,382 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training GBPUSD: 0
+  Loading MT5_5M_BT_USDJPY_Dataset.csv... ✓ Loaded 12,295 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training USDJPY: 0
+  Loading MT5_5M_BT_AUDUSD_Dataset.csv... ✓ Loaded 12,444 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training AUDUSD: 0
+  Loading MT5_5M_BT_NZDUSD_Dataset.csv... ✓ Loaded 12,444 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training NZDUSD: 0
+  Loading MT5_5M_BT_USDCAD_Dataset.csv... ✓ Loaded 12,451 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training USDCAD: 0
+  Loading MT5_5M_BT_USDHKD_Dataset.csv... ✓ Loaded 12,488 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training USDHKD: 0
+  Loading MT5_5M_BT_EURGBP_Dataset.csv... ✓ Loaded 12,399 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training EURGBP: 0
+  Loading MT5_5M_BT_EURJPY_Dataset.csv... ✓ Loaded 12,388 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training EURJPY: 0
+  Loading MT5_5M_BT_GBPJPY_Dataset.csv... ✓ Loaded 12,388 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training GBPJPY: 0
+  Loading MT5_5M_BT_AUDNZD_Dataset.csv... ✓ Loaded 12,442 rows
+  Applying SMC features... ✓
+  Creating TP-before-SL target... 
+✗ Error training AUDNZD: 0
+
+================================================================================
+TRAINING SUMMARY
+================================================================================
+Successful: 0/18
+Failed: 18
+
+Failed symbols: BTCUSD, ETHUSD, XRPUSD, LTCUSD, ADAUSD, SOLUSD, DOGEUSD, EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDHKD, EURGBP, EURJPY, GBPJPY, AUDNZD
+
+✓ Fast training complete!
+================================================================================
+
+ 
+########################################################################################################
+This project was developed by Ezee Kits (Peter) – Electrical & Electronics Engineer, Nigeria 🇳🇬.
+Automation • Machine Learning • AI • Web Scraping/Automation • Data Engineering.
+
+GitHub: https://github.com/Ezee-Kits/
+YouTube: https://www.youtube.com/@Ezee_Kits
+Email: ezeekits@gmail.com 
+######################################################################################################## 
+ 
+

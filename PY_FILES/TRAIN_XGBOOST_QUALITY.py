@@ -62,6 +62,7 @@ class TradeQualityTrainer:
         
         # Symbol configuration
         self.symbols_config = {
+            # Crypto
             'BTCUSD': 'MT5_5M_BTCUSD_Dataset.csv',
             'ETHUSD': 'MT5_5M_ETHUSD_Dataset.csv',
             'XRPUSD': 'MT5_5M_XRPUSD_Dataset.csv',
@@ -69,9 +70,19 @@ class TradeQualityTrainer:
             'ADAUSD': 'MT5_5M_ADAUSD_Dataset.csv',
             'SOLUSD': 'MT5_5M_SOLUSD_Dataset.csv',
             'DOGEUSD': 'MT5_5M_DOGEUSD_Dataset.csv',
-            'EURUSD': 'MT5_5M_EURUSD_Exchange_Rate_Dataset.csv',
+            # Forex - USD pairs
+            'EURUSD': 'MT5_5M_BT_EURUSD_Dataset.csv',
             'GBPUSD': 'MT5_5M_BT_GBPUSD_Dataset.csv',
             'USDJPY': 'MT5_5M_BT_USDJPY_Dataset.csv',
+            'AUDUSD': 'MT5_5M_BT_AUDUSD_Dataset.csv',
+            'NZDUSD': 'MT5_5M_BT_NZDUSD_Dataset.csv',
+            'USDCAD': 'MT5_5M_BT_USDCAD_Dataset.csv',
+            'USDHKD': 'MT5_5M_BT_USDHKD_Dataset.csv',
+            # Forex - crosses
+            'EURGBP': 'MT5_5M_BT_EURGBP_Dataset.csv',
+            'EURJPY': 'MT5_5M_BT_EURJPY_Dataset.csv',
+            'GBPJPY': 'MT5_5M_BT_GBPJPY_Dataset.csv',
+            'AUDNZD': 'MT5_5M_BT_AUDNZD_Dataset.csv',
         }
         
     def load_data(self, symbol: str) -> Optional[pd.DataFrame]:
@@ -611,23 +622,48 @@ class TradeQualityTrainer:
 if __name__ == "__main__":
     trainer = TradeQualityTrainer()
     
-    # Train crypto symbols
+    # All available symbols
     crypto_symbols = ['BTCUSD', 'ETHUSD', 'XRPUSD', 'LTCUSD', 'ADAUSD', 'SOLUSD', 'DOGEUSD']
+    forex_symbols = [
+        'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'NZDUSD',
+        'USDCAD', 'USDHKD', 'EURGBP', 'EURJPY', 'GBPJPY', 'AUDNZD'
+    ]
     
-    # Optional: forex
-    forex_symbols = ['EURUSD', 'GBPUSD', 'USDJPY']
+    print("\n" + "="*80)
+    print("XGBOOST TRADE QUALITY - COMPREHENSIVE TRAINING")
+    print("="*80)
     
-    print("Training crypto models with XGBoost (trade quality)...")
+    all_results = {}
+    all_failed = []
+    
+    print("\nTraining crypto models with XGBoost (trade quality)...")
     results, failed = trainer.train_all_symbols(crypto_symbols)
+    all_results.update(results)
+    all_failed.extend(failed)
     
-    if forex_symbols:
-        print("\n\nTraining forex models...")
-        forex_results, forex_failed = trainer.train_all_symbols(forex_symbols)
-        results.update(forex_results)
-        failed.extend(forex_failed)
+    print("\n" + "="*80)
+    print("Training all forex pairs...")
+    forex_results, forex_failed = trainer.train_all_symbols(forex_symbols)
+    all_results.update(forex_results)
+    all_failed.extend(forex_failed)
+    
+    print("\n" + "="*80)
+    print("COMPREHENSIVE TRAINING SUMMARY")
+    print("="*80)
+    print(f"Total symbols trained: {len(all_results)}/{len(crypto_symbols) + len(forex_symbols)}")
+    print(f"Successful: {len(all_results)}")
+    print(f"Failed: {len(all_failed)}")
+    
+    if all_results:
+        results_df = pd.DataFrame(all_results).T
+        print("\n" + results_df.to_string())
+    
+    if all_failed:
+        print(f"\nFailed symbols: {', '.join(all_failed)}")
     
     print(f"\n✓ Training complete! Check ALL_MODELS/ for XGBoost models.")
     print(f"\nNext steps:")
-    print(f"1. Review SHAP feature importance")
-    print(f"2. Verify AUC > 0.55 for all symbols")
-    print(f"3. Use optimal_threshold in live trading")
+    print(f"1. Review SHAP feature importance for each symbol")
+    print(f"2. Verify AUC > 0.55 for high-confidence models")
+    print(f"3. Use optimal_threshold from model_metadata.json in live trading")
+    print("="*80)
