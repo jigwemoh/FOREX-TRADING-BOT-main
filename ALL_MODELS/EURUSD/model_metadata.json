@@ -6,5 +6,37 @@
   "win_rate": 0.6669621749408984,
   "n_features": 24,
   "n_train": 67627,
-  "n_test": 14493
+  "n_test": 14493,
+  "5M": {
+    "auc_score": 0.660072983138002,
+    "log_loss": 0.3356482102417762,
+    "optimal_threshold": 0.6000000000000001,
+    "expectancy": 1.0021111893033074,
+    "n_features": 24,
+    "n_bars": 93694
+  },
+  "1H": {
+    "auc_score": 0.6255911074930424,
+    "log_loss": 0.6646227409495287,
+    "optimal_threshold": 0.7500000000000002,
+    "expectancy": 0.5241079199303741,
+    "n_features": 24,
+    "n_bars": 7808
+  },
+  "4H": {
+    "auc_score": 0.6871843434343434,
+    "log_loss": 0.600954924146143,
+    "optimal_threshold": 0.7000000000000002,
+    "expectancy": 1.0104166666666665,
+    "n_features": 24,
+    "n_bars": 1952
+  },
+  "1D": {
+    "auc_score": NaN,
+    "log_loss": 1.074167068335061,
+    "optimal_threshold": 0.5,
+    "expectancy": 0.0,
+    "n_features": 24,
+    "n_bars": 326
+  }
 }
