@@ -528,7 +528,8 @@ if __name__ == "__main__":
         exit(1)
 
     # Always trade symbols discovered from ALL_MODELS folders
-    symbols_list = MultiSymbolAutoTrader.discover_symbols_from_models()
+    discovered_symbols = MultiSymbolAutoTrader.discover_symbols_from_models()
+    symbols_list = discovered_symbols
     if not symbols_list:
         print("No valid model folders found in ../ALL_MODELS")
         print("Train models first: python TRAIN_CRYPTO_MODELS.py")
@@ -563,6 +564,12 @@ if __name__ == "__main__":
     if not available_symbols:
         print("No model-folder symbols are available on this broker account")
         exit(1)
+    print(
+        "Startup symbol summary: "
+        f"discovered={len(discovered_symbols)} | "
+        f"available={len(available_symbols)} | "
+        f"skipped={len(skipped_symbols)}"
+    )
     print(f"Trading available model symbols: {', '.join(available_symbols)}")
         
     # Load models
