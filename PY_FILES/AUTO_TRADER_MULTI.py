@@ -50,6 +50,7 @@ class MultiSymbolAutoTrader:
         self.models: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
         self.scalers: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
         self.model_features: Dict[str, List[str]] = {sym: [] for sym in self.symbols}
+        self.symbol_optimal_thresholds: Dict[str, float] = {}  # Per-symbol optimal thresholds
         self._feature_gap_logged: Set[str] = set()
         self._ml_diag_logged_symbols: Set[str] = set()
         self.is_running = False
@@ -198,6 +199,28 @@ class MultiSymbolAutoTrader:
                         )
                     else:
                         logging.warning(f"Invalid features list for {symbol}, using empty list")
+
+                # Load symbol-specific optimal threshold from metadata
+                metadata_path = model_dir / "model_metadata.json"
+                if metadata_path.exists():
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        # Try to get timeframe-specific threshold, fallback to global
+                        tf_key = self.timeframe.replace("_", "").upper()  # 1H -> 1H
+                        if tf_key in metadata:
+                            optimal_thresh = metadata[tf_key].get("optimal_threshold", self.ml_threshold)
+                        else:
+                            optimal_thresh = metadata.get("optimal_threshold", self.ml_threshold)
+                        
+                        # Use optimal threshold but cap it at reasonable max (0.65)
+                        self.symbol_optimal_thresholds[symbol] = min(optimal_thresh, 0.65)
+                        logging.info(
+                            f"[{symbol}] Using optimal threshold: {self.symbol_optimal_thresholds[symbol]:.2f} "
+                            f"(metadata: {optimal_thresh:.2f}, global: {self.ml_threshold:.2f})"
+                        )
+                else:
+                    self.symbol_optimal_thresholds[symbol] = self.ml_threshold
+                    logging.warning(f"[{symbol}] No metadata found, using global threshold: {self.ml_threshold:.2f}")
 
                 # Load models for different timeframes (intraday and daily/higher)
                 timeframes = ["T_5M", "T_10M", "T_15M", "T_20M", "T_30M", "T_1H", "T_4H", "T_1D", "T_1W", "T_1M"]
@@ -404,9 +427,20 @@ class MultiSymbolAutoTrader:
                 prob_up = float(probabilities[1])
                 confidence = max(prob_up, prob_down)
 
-                if prob_up >= self.ml_threshold and prob_up > prob_down:
+                # Use symbol-specific optimal threshold
+                effective_threshold = self.symbol_optimal_thresholds.get(symbol, self.ml_threshold)
+                
+                # Log signal details periodically
+                if diag_key not in self._ml_diag_logged_symbols or np.random.random() < 0.05:  # Log 5% of signals
+                    logging.info(
+                        f"[ML SIGNAL] {symbol} | BUY={prob_up:.3f} SELL={prob_down:.3f} | "
+                        f"threshold={effective_threshold:.2f} | "
+                        f"signal={'BUY' if prob_up >= effective_threshold and prob_up > prob_down else 'SELL' if prob_down >= effective_threshold and prob_down > prob_up else 'HOLD'}"
+                    )
+
+                if prob_up >= effective_threshold and prob_up > prob_down:
                     return 1, confidence
-                if prob_down >= self.ml_threshold and prob_down > prob_up:
+                if prob_down >= effective_threshold and prob_down > prob_up:
                     return -1, confidence
 
                 return 0, confidence
@@ -714,17 +748,36 @@ class MultiSymbolAutoTrader:
                 ml_signal, ml_confidence = self.get_ml_signal(symbol, df)
                 smc_signal = self.get_smc_signal(df)
                 
-                logging.info(f"[{symbol}] ML Signal: {ml_signal} (conf: {ml_confidence:.2f}) | SMC Signal: {smc_signal}")
+                # Get symbol-specific threshold for logging
+                effective_threshold = self.symbol_optimal_thresholds.get(symbol, self.ml_threshold)
+                
+                logging.info(
+                    f"[{symbol}] ML: {ml_signal:+d} (conf={ml_confidence:.3f}, thresh={effective_threshold:.2f}) | "
+                    f"SMC: {smc_signal:+d}"
+                )
                 
                 # Combined signal logic - only open NEW trades for configured symbols
                 open_positions = self.get_open_positions(symbol)
-                if open_positions < self.max_positions:
-                    if self.use_ml:
-                        if ml_signal != 0 and ml_confidence >= self.ml_threshold:
+                
+                if open_positions >= self.max_positions:
+                    logging.debug(f"[{symbol}] Max positions reached ({open_positions}/{self.max_positions})")
+                elif self.use_ml:
+                    if ml_signal != 0:
+                        if ml_confidence >= effective_threshold:
+                            logging.info(f"[{symbol}] ✓ SIGNAL PASSED - Opening trade")
                             self.open_trade(symbol, ml_signal, ml_confidence)
+                        else:
+                            logging.info(
+                                f"[{symbol}] ✗ SIGNAL BLOCKED - Confidence {ml_confidence:.3f} < {effective_threshold:.2f}"
+                            )
                     else:
-                        if smc_signal != 0:
-                            self.open_trade(symbol, smc_signal, 0.5)
+                        logging.debug(f"[{symbol}] No ML signal (HOLD)")
+                else:
+                    if smc_signal != 0:
+                        logging.info(f"[{symbol}] ✓ SMC SIGNAL - Opening trade")
+                        self.open_trade(symbol, smc_signal, 0.5)
+                    else:
+                        logging.debug(f"[{symbol}] No SMC signal")
                 
                 # Manage ALL open trades (bot-generated and manual)
                 self.manage_all_trades()
