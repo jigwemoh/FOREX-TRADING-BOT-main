@@ -387,7 +387,7 @@ class AutoTrader:
                 "magic": 234000,
                 "comment": f"ML confidence: {confidence:.2f}",
                 "type_time": mt5.ORDER_TIME_GTC,
-                "type_filling": mt5.ORDER_FILLING_IOC,
+                "type_filling": mt5.ORDER_FILLING_FOK,
             }
             
             # Send order

@@ -716,7 +716,7 @@ class MultiSymbolAutoTrader:
                 "sl": current_price - (50 * symbol_info.point) if signal == 1 else current_price + (50 * symbol_info.point),
                 "tp": current_price + (100 * symbol_info.point) if signal == 1 else current_price - (100 * symbol_info.point),
                 "comment": order_comment,
-                "type_filling": mt5.ORDER_FILLING_IOC,
+                "type_filling": mt5.ORDER_FILLING_FOK,
                 "type_time": mt5.ORDER_TIME_GTC,
             }
             
