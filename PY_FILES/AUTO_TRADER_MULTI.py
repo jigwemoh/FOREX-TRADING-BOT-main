@@ -24,7 +24,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('../CSV_FILES/trading_log.txt'),
+        logging.FileHandler('../CSV_FILES/trading_log.txt', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -764,17 +764,17 @@ class MultiSymbolAutoTrader:
                 elif self.use_ml:
                     if ml_signal != 0:
                         if ml_confidence >= effective_threshold:
-                            logging.info(f"[{symbol}] ✓ SIGNAL PASSED - Opening trade")
+                            logging.info(f"[{symbol}] [PASS] SIGNAL PASSED - Opening trade")
                             self.open_trade(symbol, ml_signal, ml_confidence)
                         else:
                             logging.info(
-                                f"[{symbol}] ✗ SIGNAL BLOCKED - Confidence {ml_confidence:.3f} < {effective_threshold:.2f}"
+                                f"[{symbol}] [SKIP] SIGNAL BLOCKED - Confidence {ml_confidence:.3f} < {effective_threshold:.2f}"
                             )
                     else:
                         logging.debug(f"[{symbol}] No ML signal (HOLD)")
                 else:
                     if smc_signal != 0:
-                        logging.info(f"[{symbol}] ✓ SMC SIGNAL - Opening trade")
+                        logging.info(f"[{symbol}] [PASS] SMC SIGNAL - Opening trade")
                         self.open_trade(symbol, smc_signal, 0.5)
                     else:
                         logging.debug(f"[{symbol}] No SMC signal")
@@ -856,8 +856,20 @@ if __name__ == "__main__":
     MT5_TERMINAL_PATH = str(mt5_cfg.get("terminal_path", "")).strip() or None
 
     if MT5_LOGIN == 0 or not MT5_PASSWORD or not MT5_SERVER:
-        print("Invalid MT5 configuration in ../config.json")
-        print("Run: python CONFIG_MANAGER.py create")
+        print("=" * 70)
+        print("ERROR: Invalid MT5 configuration in ../config.json")
+        print("=" * 70)
+        print("\nRequired fields:")
+        print(f"  ✗ MT5 Login: {MT5_LOGIN or 'MISSING'}")
+        print(f"  ✗ MT5 Password: {'MISSING' if not MT5_PASSWORD else '***hidden***'}")
+        print(f"  ✗ MT5 Server: {MT5_SERVER or 'MISSING'}")
+        print("\nTo configure:")
+        print("  python CONFIG_MANAGER.py create")
+        print("\nTo use demo account (HFMarketsGlobal-Demo):")
+        print("  1. Edit ../config.json")
+        print("  2. Set mt5.password to your actual account password")
+        print("  3. Ensure mt5.login and mt5.server match your account")
+        print("=" * 70)
         exit(1)
 
     # Always trade symbols discovered from ALL_MODELS folders

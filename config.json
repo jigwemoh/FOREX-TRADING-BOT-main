@@ -11,7 +11,7 @@
   },
   "mt5": {
     "login": 49356140,
-    "password": "",
+    "password": "demo_password_placeholder",
     "server": "HFMarketsGlobal-Demo",
     "terminal_path": "",
     "timeout": 5000
