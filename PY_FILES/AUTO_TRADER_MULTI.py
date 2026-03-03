@@ -212,8 +212,9 @@ class MultiSymbolAutoTrader:
                         else:
                             optimal_thresh = metadata.get("optimal_threshold", self.ml_threshold)
                         
-                        # Use optimal threshold but cap it at reasonable max (0.65)
-                        self.symbol_optimal_thresholds[symbol] = min(optimal_thresh, 0.65)
+                        # Use the MORE RESTRICTIVE (maximum) threshold between optimal and global
+                        # This prevents per-symbol thresholds from being too permissive
+                        self.symbol_optimal_thresholds[symbol] = max(optimal_thresh, self.ml_threshold)
                         logging.info(
                             f"[{symbol}] Using optimal threshold: {self.symbol_optimal_thresholds[symbol]:.2f} "
                             f"(metadata: {optimal_thresh:.2f}, global: {self.ml_threshold:.2f})"
