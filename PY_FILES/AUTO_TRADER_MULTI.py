@@ -682,16 +682,36 @@ class MultiSymbolAutoTrader:
                 return
                 
             tick_value = symbol_info.trade_tick_value
+            point = symbol_info.point
             
             # Calculate lot size based on risk
             account = mt5.account_info()
-            risk_money = account.balance * (self.risk_percent / 100)
-            lot_size = risk_money / (50 * tick_value)  # 50 pips stop loss
             
-            # Round to symbol's volume step
+            # Risk calculation: risk_percent of account balance
+            # Example: 1% of $26,799 = $267.99 risk per trade
+            risk_money = account.balance * (self.risk_percent / 100)
+            
+            # Standard stop loss: 50 pips (can be adjusted per symbol)
+            # Lot size = Risk Money / (Stop Loss in pips * Tick Value)
+            stop_loss_pips = 50
+            lot_size = risk_money / (stop_loss_pips * tick_value)
+            
+            # Enforce symbol's volume constraints
             lot_step = symbol_info.volume_step
-            lot_size = max(symbol_info.volume_min, min(lot_size, symbol_info.volume_max))
+            lot_min = symbol_info.volume_min
+            lot_max = symbol_info.volume_max
+            
+            # Clamp and round to symbol's step
+            lot_size = max(lot_min, min(lot_size, lot_max))
             lot_size = round(lot_size / lot_step) * lot_step
+            
+            # Log lot calculation for transparency
+            logging.info(
+                f"[{symbol}] Lot calculation: balance=${account.balance:.2f} | "
+                f"risk={self.risk_percent}% (${risk_money:.2f}) | SL={stop_loss_pips}pips | "
+                f"tick_value=${tick_value:.6f} | calculated={risk_money / (stop_loss_pips * tick_value):.4f} | "
+                f"final={lot_size:.6f} (min={lot_min}, max={lot_max}, step={lot_step})"
+            )
             
             # Get market data for entry
             df = self.get_market_data(symbol, 100)

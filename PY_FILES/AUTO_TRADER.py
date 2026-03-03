@@ -327,7 +327,17 @@ class AutoTrader:
             lot_size = round(lot_size / lot_step) * lot_step
             
             # Limit to min/max
-            lot_size = max(symbol_info.volume_min, min(lot_size, symbol_info.volume_max))
+            lot_min = symbol_info.volume_min
+            lot_max = symbol_info.volume_max
+            lot_size = max(lot_min, min(lot_size, lot_max))
+            
+            # Log lot calculation for transparency
+            logging.debug(
+                f"[{self.symbol}] Lot calculation: risk_amount=${risk_amount:.2f} | "
+                f"SL={stop_loss_pips}pips | pip_value=${pip_value:.6f} | "
+                f"calculated={risk_amount / (stop_loss_pips * pip_value):.4f} | "
+                f"final={lot_size:.6f} (min={lot_min}, max={lot_max}, step={lot_step})"
+            )
             
             return lot_size
             
