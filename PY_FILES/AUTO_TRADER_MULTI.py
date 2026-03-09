@@ -38,13 +38,15 @@ class MultiSymbolAutoTrader:
         timeframe: str = "1H",
         risk_percent: float = 1.0,
         max_positions: int = 3,
+        max_positions_global: int = 5,
         use_ml: bool = True,
         ml_threshold: float = 0.55
     ):
         self.symbols = symbols or ["EURUSD"]
         self.timeframe = timeframe
         self.risk_percent = risk_percent
-        self.max_positions = max_positions
+        self.max_positions = max_positions  # Per-symbol
+        self.max_positions_global = max_positions_global  # Total across all symbols
         self.use_ml = use_ml
         self.ml_threshold = ml_threshold
         self.models: Dict[str, Dict[str, object]] = {sym: {} for sym in self.symbols}
@@ -780,9 +782,12 @@ class MultiSymbolAutoTrader:
                 
                 # Combined signal logic - only open NEW trades for configured symbols
                 open_positions = self.get_open_positions(symbol)
+                total_positions = len(self.get_all_open_positions())
                 
                 if open_positions >= self.max_positions:
                     logging.info(f"[{symbol}] [BLOCK] Max positions reached ({open_positions}/{self.max_positions})")
+                elif total_positions >= self.max_positions_global:
+                    logging.info(f"[{symbol}] [BLOCK] Global position limit reached ({total_positions}/{self.max_positions_global})")
                 elif self.use_ml:
                     if ml_signal != 0:
                         if ml_confidence >= effective_threshold:
@@ -896,17 +901,27 @@ if __name__ == "__main__":
 
     # Always trade symbols discovered from ALL_MODELS folders
     discovered_symbols = MultiSymbolAutoTrader.discover_symbols_from_models()
-    symbols_list = discovered_symbols
+    
+    # Use config symbols if specified, otherwise use discovered symbols
+    configured_symbols = trading_cfg.get("symbols", [])
+    if configured_symbols:
+        # Only trade symbols that are both in config AND have models
+        symbols_list = [s for s in configured_symbols if s in discovered_symbols]
+        print(f"Using configured symbols: {', '.join(symbols_list)}")
+    else:
+        # Fallback: trade all discovered symbols
+        symbols_list = discovered_symbols
+        print(f"Using all discovered symbols: {', '.join(symbols_list)}")
+    
     if not symbols_list:
-        print("No valid model folders found in ../ALL_MODELS")
-        print("Train models first: python TRAIN_CRYPTO_MODELS.py")
+        print("No valid symbols configured or found")
+        print(f"Configure symbols in config.json trading.symbols")
         exit(1)
-
-    print(f"Using model-folder symbols only: {', '.join(symbols_list)}")
     
     TIMEFRAME = str(trading_cfg.get("timeframe", "1H")).upper()
     RISK_PERCENT = float(trading_cfg.get("risk_percent", 1.0))
     MAX_POSITIONS = int(trading_cfg.get("max_positions", 3))
+    MAX_POSITIONS_GLOBAL = int(trading_cfg.get("max_positions_global", 5))
     USE_ML = bool(trading_cfg.get("use_ml", True))
     ML_THRESHOLD = float(trading_cfg.get("ml_threshold", 0.55))
     CHECK_INTERVAL = int(execution_cfg.get("check_interval", 300))
@@ -917,6 +932,7 @@ if __name__ == "__main__":
         timeframe=TIMEFRAME,
         risk_percent=RISK_PERCENT,
         max_positions=MAX_POSITIONS,
+        max_positions_global=MAX_POSITIONS_GLOBAL,
         use_ml=USE_ML,
         ml_threshold=ML_THRESHOLD
     )

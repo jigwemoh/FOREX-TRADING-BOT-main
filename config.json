@@ -1,13 +1,42 @@
 {
   "trading": {
     "symbol": "EURUSD",
+    "symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
     "timeframe": "1H",
     "risk_per_trade": 0.02,
     "risk_percent": 1.0,
     "max_trades": 5,
     "max_positions": 3,
+    "max_positions_global": 5,
     "use_ml": true,
-    "ml_threshold": 0.52
+    "ml_threshold": 0.52,
+    "scalping": {
+      "enabled": true,
+      "timeframes": ["M1", "M5"],
+      "min_confidence": 0.65,
+      "risk_per_trade": 0.02,
+      "max_daily_loss": 0.06,
+      "max_consecutive_losses": 4,
+      "reward_ratio": 1.2,
+      "kelly_fraction": 0.5
+    },
+    "microstructure": {
+      "detect_liquidity_sweeps": true,
+      "detect_rejection_candles": true,
+      "detect_false_breakouts": true,
+      "vwap_lookback": 50,
+      "atr_period": 14,
+      "ema_fast": 20,
+      "ema_slow": 50
+    },
+    "session_filters": {
+      "london_hours": [8, 16],
+      "ny_hours": [13, 21],
+      "asia_hours": [0, 8],
+      "prefer_overlap": true,
+      "avoid_news_window": true,
+      "news_window_minutes": 15
+    }
   },
   "mt5": {
     "login": 49356140,
@@ -17,7 +46,8 @@
     "timeout": 5000
   },
   "execution": {
-    "check_interval": 300
+    "check_interval": 300,
+    "scalping_check_interval": 60
   },
   "notifications": {
     "enabled": false
