@@ -684,7 +684,6 @@ class MultiSymbolAutoTrader:
                 return
                 
             tick_value = symbol_info.trade_tick_value
-            point = symbol_info.point
             
             # Calculate lot size based on risk
             account = mt5.account_info()

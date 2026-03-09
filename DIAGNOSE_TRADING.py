@@ -100,7 +100,7 @@ def check_mt5_connection():
     print("="*80)
     
     try:
-        import MetaTrader5 as mt5
+        import MetaTrader5 as mt5  # type: ignore
         print("✓ MetaTrader5 module imported")
     except ImportError:
         print("❌ MetaTrader5 module not installed (expected on non-Windows)")
@@ -139,7 +139,6 @@ def check_signal_generation():
     
     try:
         import pandas as pd
-        import numpy as np
         import joblib
         
         # Load EURUSD model as test
