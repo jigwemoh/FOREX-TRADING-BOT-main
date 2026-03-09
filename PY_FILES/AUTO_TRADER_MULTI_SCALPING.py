@@ -168,20 +168,6 @@ class MultiSymbolAutoTrader:
             logging.error(f"MT5 initialization failed: {mt5.last_error()}")
             return False
 
-        # If terminal is already authorized with the target account, use it.
-        account_info = mt5.account_info()
-        if account_info is not None and int(account_info.login) == int(login):
-            logging.info(f"Connected to MT5 (existing session): {account_info}")
-            return True
-            
-        if not mt5.login(login, password=password, server=server):
-            logging.error(f"MT5 login failed: {mt5.last_error()}")
-            mt5.shutdown()
-            return False
-            
-        logging.info(f"Connected to MT5: {mt5.account_info()}")
-        return True
-        
         # ===== SCALPING ENGINE INITIALIZATION (NEW) =====
         # Initialize scalping engines for intraday trading
         self.scalping_engines: Dict[str, ScalpingEngine] = {}
@@ -199,6 +185,20 @@ class MultiSymbolAutoTrader:
             )
         
         logging.info("[SCALPING] Engines initialized for all symbols")
+        
+        # If terminal is already authorized with the target account, use it.
+        account_info = mt5.account_info()
+        if account_info is not None and int(account_info.login) == int(login):
+            logging.info(f"Connected to MT5 (existing session): {account_info}")
+            return True
+            
+        if not mt5.login(login, password=password, server=server):
+            logging.error(f"MT5 login failed: {mt5.last_error()}")
+            mt5.shutdown()
+            return False
+            
+        logging.info(f"Connected to MT5: {mt5.account_info()}")
+        return True
         
     def load_models(self) -> bool:
         """Load trained ML models and scalers for all symbols"""
