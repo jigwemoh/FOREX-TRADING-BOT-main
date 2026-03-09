@@ -783,24 +783,24 @@ class MultiSymbolAutoTrader:
                 open_positions = self.get_open_positions(symbol)
                 
                 if open_positions >= self.max_positions:
-                    logging.debug(f"[{symbol}] Max positions reached ({open_positions}/{self.max_positions})")
+                    logging.info(f"[{symbol}] [BLOCK] Max positions reached ({open_positions}/{self.max_positions})")
                 elif self.use_ml:
                     if ml_signal != 0:
                         if ml_confidence >= effective_threshold:
-                            logging.info(f"[{symbol}] [PASS] SIGNAL PASSED - Opening trade")
+                            logging.info(f"[{symbol}] [PASS] SIGNAL PASSED (conf={ml_confidence:.3f} >= {effective_threshold:.2f}) - Opening trade")
                             self.open_trade(symbol, ml_signal, ml_confidence)
                         else:
                             logging.info(
-                                f"[{symbol}] [SKIP] SIGNAL BLOCKED - Confidence {ml_confidence:.3f} < {effective_threshold:.2f}"
+                                f"[{symbol}] [BLOCK] CONFIDENCE TOO LOW: {ml_confidence:.3f} < {effective_threshold:.2f}"
                             )
                     else:
-                        logging.debug(f"[{symbol}] No ML signal (HOLD)")
+                        logging.info(f"[{symbol}] [HOLD] No ML signal generated (prob_up and prob_down both below threshold)")
                 else:
                     if smc_signal != 0:
                         logging.info(f"[{symbol}] [PASS] SMC SIGNAL - Opening trade")
                         self.open_trade(symbol, smc_signal, 0.5)
                     else:
-                        logging.debug(f"[{symbol}] No SMC signal")
+                        logging.info(f"[{symbol}] [HOLD] No SMC signal")
                 
                 # Manage ALL open trades (bot-generated and manual)
                 self.manage_all_trades()
