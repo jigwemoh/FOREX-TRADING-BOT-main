@@ -12,12 +12,12 @@
     "ml_threshold": 0.52,
     "scalping": {
       "enabled": true,
-      "timeframes": ["M5"],           // Start with M5 only for testing
-      "min_confidence": 0.68,         // Higher confidence threshold
-      "risk_per_trade": 0.005,        // 0.5% risk (very conservative)
-      "max_daily_loss": 0.02,         // Stop at -2% daily
-      "max_consecutive_losses": 2,    // Stop after 2 losses
-      "reward_ratio": 1.5             // Higher profit target
+      "timeframes": ["M5"],
+      "min_confidence": 0.68,
+      "risk_per_trade": 0.005,
+      "max_daily_loss": 0.02,
+      "max_consecutive_losses": 2,
+      "reward_ratio": 1.5
     },
     "microstructure": {
       "detect_liquidity_sweeps": true,
