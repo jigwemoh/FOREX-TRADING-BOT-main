@@ -17,7 +17,15 @@
       "risk_per_trade": 0.005,
       "max_daily_loss": 0.02,
       "max_consecutive_losses": 2,
-      "reward_ratio": 1.5
+      "reward_ratio": 1.5,
+      "max_bars_held": {
+        "M1": 5,
+        "M5": 12,
+        "H1": 24
+      },
+      "trailing_stop_activation": 1.0,
+      "scale_out_levels": [1.0, 2.0, 3.0],
+      "scale_out_sizes": [0.3, 0.3, 0.4]
     },
     "microstructure": {
       "detect_liquidity_sweeps": true,
@@ -35,6 +43,115 @@
       "prefer_overlap": true,
       "avoid_news_window": true,
       "news_window_minutes": 15
+    },
+    "advanced_risk": {
+      "portfolio_var_limit": 0.05,
+      "correlation_limits": {
+        "EURUSD-GBPUSD": 0.8,
+        "EURUSD-USDJPY": 0.6,
+        "GBPUSD-USDJPY": 0.7
+      },
+      "sector_concentration_limit": 0.4,
+      "dynamic_kelly_fraction": true,
+      "kelly_fraction_range": [0.1, 0.5]
+    },
+    "performance_tracking": {
+      "enabled": true,
+      "min_sample_size": 10,
+      "regime_performance_tracking": true,
+      "time_based_optimization": true,
+      "auto_parameter_adjustment": false
+    },
+    "ml_setup_quality": {
+      "enabled": true,
+      "model_path": "../ALL_MODELS/setup_quality_model.cbm",
+      "training_data_path": "../CSV_FILES/setup_quality_training.csv",
+      "min_training_samples": 1000,
+      "retrain_interval_days": 7,
+      "feature_importance_tracking": true,
+      "quality_weight": 0.3,
+      "microstructure_weight": 0.7
+    },
+    "adaptive_parameters": {
+      "enabled": true,
+      "performance_window_trades": 20,
+      "regime_window_observations": 50,
+      "adjustment_cooldown_seconds": 300,
+      "confidence_threshold_range": [0.6, 0.8],
+      "risk_multiplier_range": [0.5, 1.5],
+      "regime_based_adjustments": true,
+      "performance_based_adjustments": true
+    },
+    "order_flow_analysis": {
+      "enabled": true,
+      "tick_buffer_size": 1000,
+      "volume_profile_bins": 20,
+      "min_confluence_score": 0.7,
+      "signal_weights": {
+        "volume_imbalance": 0.25,
+        "order_book_pressure": 0.20,
+        "tick_flow": 0.15,
+        "volume_profile": 0.15,
+        "momentum_divergence": 0.10,
+        "regime_shift": 0.08,
+        "liquidity_void": 0.05,
+        "aggression_imbalance": 0.02
+      },
+      "regime_adaptive_weights": {
+        "HIGH_VOLATILITY": {
+          "volume_imbalance": 0.30,
+          "order_book_pressure": 0.25,
+          "tick_flow": 0.20,
+          "volume_profile": 0.15,
+          "momentum_divergence": 0.10
+        },
+        "LOW_VOLATILITY": {
+          "volume_profile": 0.25,
+          "liquidity_void": 0.20,
+          "regime_shift": 0.20,
+          "momentum_divergence": 0.20,
+          "tick_flow": 0.15
+        },
+        "NORMAL_VOLATILITY": {
+          "volume_imbalance": 0.25,
+          "order_book_pressure": 0.20,
+          "tick_flow": 0.15,
+          "volume_profile": 0.15,
+          "momentum_divergence": 0.10,
+          "regime_shift": 0.08,
+          "liquidity_void": 0.05,
+          "aggression_imbalance": 0.02
+        }
+      },
+      "high_frequency_processing": {
+        "max_latency_ms": 50,
+        "async_buffer_size": 500,
+        "multi_scale_timeframes": ["tick", "1s", "5s"],
+        "latency_optimization_enabled": true,
+        "performance_monitoring": true
+      },
+      "scalping_integration": {
+        "order_flow_boost_weight": 0.3,
+        "min_of_confidence_threshold": 0.65,
+        "micro_scalp_stop_pips": 15,
+        "micro_scalp_target_pips": 30,
+        "confluence_boost_max": 0.3
+      }
+    },
+    "scalping_advanced": {
+      "max_bars_held": {
+        "M1": 12,
+        "M5": 8,
+        "M15": 6,
+        "M30": 4
+      },
+      "trailing_stop_activation": 1.0,
+      "scale_out_levels": [1.0, 2.0, 3.0],
+      "scale_out_sizes": [0.3, 0.3, 0.4],
+      "time_exit_volatility_adjustment": true,
+      "dynamic_stop_buffer": 0.2,
+      "profit_lock_threshold": 1.5,
+      "max_loss_multiplier": 1.2
     }
   },
   "mt5": {

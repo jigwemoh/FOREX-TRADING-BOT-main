@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Tuple, Any
 from datetime import datetime, timezone
 import json
+import pandas as pd
 
 logger = logging.getLogger("SCALPING_INTEGRATION")
 
@@ -155,6 +156,163 @@ class ScalpingIntegration:
         
         return False
 
+    def validate_setup_quality(
+        self,
+        symbol: str,
+        setup: Dict[str, Any],
+        mt5_connection: Any
+    ) -> float:
+        """
+        Validate scalping setup across multiple timeframes
+        
+        Args:
+            symbol: Trading symbol
+            setup: Setup dictionary with type, direction, etc.
+            mt5_connection: MT5 connection object
+            
+        Returns:
+            Confirmation score (0.0-1.0)
+        """
+        confirmation_score = 0.5  # Base score
+        
+        try:
+            # Get higher timeframe data for trend confirmation
+            h1_data = self._get_timeframe_data(symbol, mt5_connection, "H1", 50)
+            h4_data = self._get_timeframe_data(symbol, mt5_connection, "H4", 20)
+            
+            if h1_data is not None and len(h1_data) >= 10:
+                h1_trend = self._analyze_trend_alignment(h1_data, setup)
+                confirmation_score += h1_trend * 0.3
+            
+            if h4_data is not None and len(h4_data) >= 5:
+                h4_trend = self._analyze_trend_alignment(h4_data, setup)
+                confirmation_score += h4_trend * 0.2
+            
+            # Check for confluence with key levels
+            level_confluence = self._check_level_confluence(symbol, setup, mt5_connection)
+            confirmation_score += level_confluence * 0.2
+            
+        except Exception as e:
+            logger.warning(f"[MTF VALIDATION] Error for {symbol}: {e}")
+        
+        return min(1.0, max(0.0, confirmation_score))
+
+    def _get_timeframe_data(self, symbol: str, mt5_connection: Any, timeframe: str, bars: int):
+        """Get data for specific timeframe"""
+        try:
+            # Map timeframe string to MT5 constant
+            tf_map = {
+                "M1": mt5_connection.TIMEFRAME_M1,
+                "M5": mt5_connection.TIMEFRAME_M5,
+                "H1": mt5_connection.TIMEFRAME_H1,
+                "H4": mt5_connection.TIMEFRAME_H4
+            }
+            
+            if timeframe not in tf_map:
+                return None
+                
+            rates = mt5_connection.copy_rates_from_pos(symbol, tf_map[timeframe], 0, bars)
+            if rates is None or len(rates) == 0:
+                return None
+                
+            df = pd.DataFrame(rates)
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            return df
+            
+        except Exception as e:
+            logger.warning(f"[MTF DATA] Error getting {timeframe} data for {symbol}: {e}")
+            return None
+
+    def _analyze_trend_alignment(self, df: pd.DataFrame, setup: Dict[str, Any]) -> float:
+        """
+        Analyze if higher timeframe supports the setup direction
+        
+        Returns:
+            Alignment score (0.0-1.0)
+        """
+        if len(df) < 5:
+            return 0.5
+            
+        # Simple trend analysis using moving averages
+        df = df.copy()
+        df['SMA20'] = df['close'].rolling(20).mean()
+        df['SMA50'] = df['close'].rolling(50).mean()
+        
+        latest = df.iloc[-1]
+        direction = setup.get('direction', 0)
+        
+        if direction == 1:  # Long setup
+            # Higher TF should support upward movement
+            if latest['close'] > latest['SMA20'] > latest['SMA50']:
+                return 0.8  # Strong uptrend
+            elif latest['close'] > latest['SMA20']:
+                return 0.6  # Moderate uptrend
+            else:
+                return 0.3  # Counter-trend
+        
+        elif direction == -1:  # Short setup
+            # Higher TF should support downward movement
+            if latest['close'] < latest['SMA20'] < latest['SMA50']:
+                return 0.8  # Strong downtrend
+            elif latest['close'] < latest['SMA20']:
+                return 0.6  # Moderate downtrend
+            else:
+                return 0.3  # Counter-trend
+        
+        return 0.5  # Neutral
+
+    def _check_level_confluence(self, symbol: str, setup: Dict[str, Any], mt5_connection: Any) -> float:
+        """
+        Check if setup aligns with key support/resistance levels
+        
+        Returns:
+            Confluence score (0.0-1.0)
+        """
+        try:
+            # Get recent swing highs/lows as potential levels
+            rates = mt5_connection.copy_rates_from_pos(symbol, mt5_connection.TIMEFRAME_H1, 0, 100)
+            if rates is None or len(rates) < 20:
+                return 0.5
+                
+            df = pd.DataFrame(rates)
+            entry_price = setup.get('entry_price', 0)
+            
+            # Find recent swing points
+            highs = []
+            lows = []
+            
+            for i in range(2, len(df) - 2):
+                # Swing high
+                if (df.iloc[i]['high'] > df.iloc[i-1]['high'] and 
+                    df.iloc[i]['high'] > df.iloc[i-2]['high'] and
+                    df.iloc[i]['high'] > df.iloc[i+1]['high'] and 
+                    df.iloc[i]['high'] > df.iloc[i+2]['high']):
+                    highs.append(df.iloc[i]['high'])
+                
+                # Swing low
+                if (df.iloc[i]['low'] < df.iloc[i-1]['low'] and 
+                    df.iloc[i]['low'] < df.iloc[i-2]['low'] and
+                    df.iloc[i]['low'] < df.iloc[i+1]['low'] and 
+                    df.iloc[i]['low'] < df.iloc[i+2]['low']):
+                    lows.append(df.iloc[i]['low'])
+            
+            # Check proximity to levels
+            direction = setup.get('direction', 0)
+            level_tolerance = entry_price * 0.001  # 0.1% tolerance
+            
+            if direction == 1:  # Long setup - check support levels
+                nearby_lows = [low for low in lows[-5:] if abs(entry_price - low) < level_tolerance]
+                return min(1.0, len(nearby_lows) * 0.3)
+            
+            elif direction == -1:  # Short setup - check resistance levels
+                nearby_highs = [high for high in highs[-5:] if abs(entry_price - high) < level_tolerance]
+                return min(1.0, len(nearby_highs) * 0.3)
+                
+        except Exception as e:
+            logger.warning(f"[LEVEL CONFLUENCE] Error for {symbol}: {e}")
+        
+        return 0.5
+
     def calculate_setup_score(
         self,
         setup_type: str,
@@ -182,6 +340,14 @@ class ScalpingIntegration:
             "LIQUIDITY_SWEEP": 0.85,  # Best for scalping
             "REJECTION_BULLISH": 0.80,
             "REJECTION_BEARISH": 0.80,
+            "ENGULFING_BREAKOUT_LONG": 0.82,  # New enhanced setups
+            "ENGULFING_BREAKOUT_SHORT": 0.82,
+            "HAMMER_REVERSAL_LONG": 0.78,
+            "SHOOTING_STAR_SHORT": 0.78,
+            "FRACTAL_BREAKOUT_LONG": 0.75,
+            "FRACTAL_BREAKOUT_SHORT": 0.75,
+            "VOLUME_SPIKE_LONG": 0.80,
+            "VOLUME_SPIKE_SHORT": 0.80,
             "EMA_BREAKOUT_LONG": 0.70,
             "EMA_BREAKOUT_SHORT": 0.70,
             "VWAP_BOUNCE_LONG": 0.65,

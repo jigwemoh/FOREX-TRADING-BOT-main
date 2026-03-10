@@ -18,10 +18,24 @@ import json
 from typing import Dict, Tuple, Optional, List, Any, Set
 import logging
 from threading import Thread
+from datetime import datetime, timezone
 
 # ===== SCALPING IMPORTS (NEW) =====
-from SCALPING_ENGINE import ScalpingEngine, create_scalping_setup_from_ml
+from SCALPING_ENGINE import (
+    ScalpingEngine, 
+    create_scalping_setup_from_ml,
+    MLSetupQualityPredictor,
+    AdaptiveParameterManager,
+    DynamicExitManager,
+    AdvancedRiskManager,
+    PerformanceAnalytics
+)
 from SCALPING_INTEGRATION import ScalpingIntegration, RiskAdjustmentEngine
+
+# ===== PHASE 3 ORDER FLOW IMPORTS (NEW) =====
+from ORDER_FLOW_ANALYZER import OrderFlowAnalyzer
+from HIGH_FREQUENCY_PROCESSOR import AsyncTickHandler, MultiScaleAnalyzer, LatencyOptimizer
+from ORDER_FLOW_SIGNAL_GENERATOR import OrderFlowSignalGenerator, ConfluenceAnalyzer, RegimeAdaptiveWeighter
 
 # Configure logging
 logging.basicConfig(
@@ -79,6 +93,124 @@ class MultiSymbolAutoTrader:
         # Major crypto pairs support
         self.crypto_pairs = {"BTCUSD", "ETHUSD", "XRPUSD", "LTCUSD", "ADAUSD", "SOLUSD", "DOGEUSD"}
         self.forex_pairs = {"EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF"}
+
+        # ===== SCALPING COMPONENTS INITIALIZATION =====
+        self.scalping_engines: Dict[str, ScalpingEngine] = {}
+        self.scalping_integration = ScalpingIntegration()
+        self.ml_quality_predictor = MLSetupQualityPredictor()
+        self.adaptive_param_manager = AdaptiveParameterManager()
+
+        # Initialize scalping engines for each symbol
+        for symbol in self.symbols:
+            self.scalping_engines[symbol] = ScalpingEngine(
+                symbol=symbol,
+                timeframe="M5",  # Scalping on M5 timeframe
+                atr_period=14,
+                vwap_lookback=50,
+                ema_fast=20,
+                ema_slow=50
+            )
+
+        # Advanced risk and performance management
+        self.advanced_risk_manager = AdvancedRiskManager()
+        self.performance_analytics = PerformanceAnalytics()
+        self.exit_managers: Dict[int, DynamicExitManager] = {}  # ticket -> exit manager
+        self.active_exits: Dict[int, Dict[str, Any]] = {}  # ticket -> exit tracking data
+
+        # ===== PHASE 3 ORDER FLOW COMPONENTS INITIALIZATION =====
+        self.order_flow_analyzers: Dict[str, OrderFlowAnalyzer] = {}
+        self.async_tick_handlers: Dict[str, AsyncTickHandler] = {}
+        self.multi_scale_analyzers: Dict[str, MultiScaleAnalyzer] = {}
+        self.order_flow_signal_generators: Dict[str, OrderFlowSignalGenerator] = {}
+        self.latency_optimizers: Dict[str, LatencyOptimizer] = {}
+
+        # Initialize Phase 3 components for each symbol
+        for symbol in self.symbols:
+            # Order flow analyzer for real-time tick analysis
+            self.order_flow_analyzers[symbol] = OrderFlowAnalyzer(
+                symbol=symbol,
+                tick_buffer_size=1000,  # Store last 1000 ticks
+                volume_profile_bins=20
+            )
+
+            # Async tick handler for high-frequency processing
+            self.async_tick_handlers[symbol] = AsyncTickHandler(
+                symbol=symbol,
+                max_latency_ms=50  # 50ms max latency
+            )
+
+            # Multi-scale analyzer for concurrent timeframe analysis
+            self.multi_scale_analyzers[symbol] = MultiScaleAnalyzer(symbol=symbol)
+
+            # Order flow signal generator for confluence analysis
+            self.order_flow_signal_generators[symbol] = OrderFlowSignalGenerator(symbol=symbol)
+
+            # Latency optimizer for performance monitoring
+            self.latency_optimizers[symbol] = LatencyOptimizer(target_latency_ms=50)
+
+        logging.info("[INIT] Phase 3 order flow components initialized with async processing and confluence analysis")
+
+    def run(self, check_interval: int = 300):
+        """Main execution method - starts trading threads for all symbols with Phase 3 order flow integration"""
+        self.is_running = True
+        logger.info(f"[START] Beginning trading execution for {len(self.symbols)} symbols")
+
+        # Start async tick processing for all symbols
+        for symbol in self.symbols:
+            try:
+                # Start async tick handler for real-time order flow processing
+                self.async_tick_handlers[symbol].start_processing()
+                logger.info(f"[PHASE3] Started async tick processing for {symbol}")
+            except Exception as e:
+                logger.error(f"[PHASE3] Failed to start async processing for {symbol}: {e}")
+
+        # Create trading threads for each symbol
+        threads = []
+        for symbol in self.symbols:
+            thread = Thread(target=self.run_symbol, args=(symbol, check_interval))
+            thread.daemon = True
+            threads.append(thread)
+            thread.start()
+            logger.info(f"[THREAD] Started trading thread for {symbol}")
+
+        # Keep main thread alive and monitor
+        try:
+            while self.is_running:
+                time.sleep(10)  # Check every 10 seconds
+
+                # Monitor Phase 3 components health
+                for symbol in self.symbols:
+                    try:
+                        # Check latency performance
+                        latency_stats = self.latency_optimizers[symbol].get_latency_stats()
+                        if latency_stats.get('avg_latency_ms', 0) > 100:
+                            logger.warning(f"[PHASE3] High latency detected for {symbol}: {latency_stats}")
+
+                        # Check order flow buffer health
+                        buffer_size = len(self.order_flow_analyzers[symbol].tick_buffer)
+                        if buffer_size < 100:
+                            logger.warning(f"[PHASE3] Low tick buffer size for {symbol}: {buffer_size}")
+
+                    except Exception as e:
+                        logger.error(f"[PHASE3] Error monitoring {symbol}: {e}")
+
+        except KeyboardInterrupt:
+            logger.info("[STOP] Received shutdown signal")
+            self.is_running = False
+
+        # Wait for threads to finish
+        for thread in threads:
+            thread.join(timeout=5)
+
+        # Shutdown Phase 3 components
+        for symbol in self.symbols:
+            try:
+                self.async_tick_handlers[symbol].stop_processing()
+                logger.info(f"[PHASE3] Stopped async processing for {symbol}")
+            except Exception as e:
+                logger.error(f"[PHASE3] Error stopping {symbol}: {e}")
+
+        logger.info("[STOP] Trading execution completed")
 
     @staticmethod
     def _mt5_terminal_candidates() -> List[str]:
@@ -174,6 +306,12 @@ class MultiSymbolAutoTrader:
         self.scalping_integration = ScalpingIntegration(config_path="../config.json")
         self.risk_adjuster = RiskAdjustmentEngine(initial_risk=0.02)
         
+        # ===== ADVANCED SCALPING COMPONENTS (NEW) =====
+        self.exit_managers: Dict[str, DynamicExitManager] = {}
+        self.advanced_risk_manager = AdvancedRiskManager()
+        self.performance_analytics = PerformanceAnalytics()
+        self.active_exits: Dict[str, Dict[str, Any]] = {}  # ticket -> exit info
+        
         for symbol in self.symbols:
             self.scalping_engines[symbol] = ScalpingEngine(
                 symbol=symbol,
@@ -185,6 +323,7 @@ class MultiSymbolAutoTrader:
             )
         
         logging.info("[SCALPING] Engines initialized for all symbols")
+        logging.info("[ADVANCED] Exit managers and analytics initialized")
         
         # If terminal is already authorized with the target account, use it.
         account_info = mt5.account_info()
@@ -856,25 +995,241 @@ class MultiSymbolAutoTrader:
                                 
                                 if scalp_result is not None:
                                     setup, final_confidence = scalp_result
+
+                                    # ===== ML SETUP QUALITY PREDICTION (NEW) =====
+                                    # Extract market context for ML prediction
+                                    market_context = {
+                                        'rsi': self._calculate_rsi(df_scalp, 14).iloc[-1] if len(df_scalp) > 14 else 50.0,
+                                        'volume_ratio': df_scalp['volume'].iloc[-1] / df_scalp['volume'].rolling(20).mean().iloc[-1] if 'volume' in df_scalp.columns and len(df_scalp) > 20 else 1.0,
+                                        'trend_strength': abs(df_scalp['close'].iloc[-1] - df_scalp['close'].iloc[-20]) / atr_value if len(df_scalp) > 20 else 0.0,
+                                        'sr_distance': min(
+                                            abs(current_price - df_scalp['high'].rolling(50).max().iloc[-1]),
+                                            abs(current_price - df_scalp['low'].rolling(50).min().iloc[-1])
+                                        ) / atr_value if len(df_scalp) > 50 else 0.5
+                                    }
+
+                                    # Get risk metrics for quality prediction
+                                    risk_metrics = self.scalping_engines[symbol].risk_metrics.get(symbol, self.scalping_engines[symbol].RiskMetrics())
+
+                                    # Extract features and predict quality
+                                    quality_features = self.ml_quality_predictor.extract_features(
+                                        setup=setup,
+                                        market_data=market_context,
+                                        risk_metrics=risk_metrics
+                                    )
+
+                                    ml_quality_score = self.ml_quality_predictor.predict_quality_probability(quality_features)
+
+                                    # Blend ML quality with microstructure confidence
+                                    blended_quality = (final_confidence * 0.7) + (ml_quality_score * 0.3)
+                                    final_confidence = blended_quality
+
+                                    logging.info(f"[{symbol}] [ML QUALITY] Setup: {setup.setup_type} | "
+                                               f"Microstructure: {final_confidence:.3f} | ML Quality: {ml_quality_score:.3f} | "
+                                               f"Blended: {blended_quality:.3f}")
+
+                                    # ===== ADAPTIVE PARAMETERS (NEW) =====
+                                    # Get current market regime for adaptive parameters
+                                    current_regime = self.scalping_engines[symbol].detect_market_regime(
+                                        df_scalp, atr_value, spread_pips
+                                    ).name
+
+                                    # Update adaptive parameter manager
+                                    self.adaptive_param_manager.record_market_regime(current_regime)
+
+                                    # Get adaptive parameters
+                                    adaptive_params = self.adaptive_param_manager.get_adaptive_parameters(symbol, current_regime)
+
+                                    # Apply adaptive confidence threshold
+                                    adaptive_threshold = adaptive_params.get('min_confidence', 0.65)
+                                    if final_confidence < adaptive_threshold:
+                                        logging.info(f"[{symbol}] [ADAPTIVE] Setup rejected - confidence {final_confidence:.3f} < threshold {adaptive_threshold:.3f}")
+                                        continue
+
+                                    # ===== MULTI-TIMEFRAME CONFIRMATION (NEW) =====
+                                    mtf_score = self.scalping_integration.validate_setup_multitimeframe(
+                                        symbol, 
+                                        {
+                                            'setup_type': setup.setup_type,
+                                            'direction': setup.direction,
+                                            'entry_price': setup.entry_price
+                                        }, 
+                                        mt5
+                                    )
                                     
-                                    # Calculate adaptive position size
+                                    # Boost confidence with MTF confirmation
+                                    mtf_boost = (mtf_score - 0.5) * 0.2  # Max 20% boost
+                                    final_confidence = min(1.0, final_confidence + mtf_boost)
+                                    
+                                    logging.info(f"[{symbol}] [MTF] Confirmation score: {mtf_score:.2f} | "
+                                               f"Confidence boost: +{mtf_boost:.2f}")
+                                    
+                                    # Calculate adaptive position size with advanced risk management
                                     total_positions = len(self.get_all_open_positions())
+
+                                    # Apply adaptive risk parameters
+                                    adaptive_risk_pct = adaptive_params.get('risk_per_trade', 0.02)
+
+                                    # Temporarily update scalping engine with adaptive parameters
+                                    original_risk = self.scalping_engines[symbol].risk_per_trade
+                                    self.scalping_engines[symbol].risk_per_trade = adaptive_risk_pct
+
+                                    # Check portfolio-level risk constraints
+                                    portfolio_var = self.advanced_risk_manager.calculate_portfolio_var(
+                                        self.get_all_open_positions(),
+                                        {sym: self._calculate_atr(self._get_market_data_timeframe(sym, 20, "H1"), 14)
+                                         for sym in self.symbols}
+                                    )
+
+                                    # Sector concentration penalty
+                                    sector_penalty = self.advanced_risk_manager.get_sector_concentration_penalty(symbol)
+
                                     adaptive_lot = self.scalping_engines[symbol].calculate_adaptive_lot_size(
                                         setup=setup,
                                         account_balance=self.get_balance(),
                                         current_positions=total_positions,
                                         symbol=symbol
                                     )
+
+                                    # Restore original risk setting
+                                    self.scalping_engines[symbol].risk_per_trade = original_risk
+
+                                    # Apply advanced risk adjustments
+                                    adaptive_lot *= sector_penalty
+                                    
+                                    # Check correlation risk
+                                    existing_symbols = [p['symbol'] for p in self.get_all_open_positions()]
+                                    correlation_ok = self.advanced_risk_manager.check_correlation_risk(symbol, existing_symbols)
+                                    
+                                    if not correlation_ok:
+                                        adaptive_lot *= 0.7  # Reduce size for correlated positions
+                                        logging.info(f"[{symbol}] [CORRELATION] Reducing size due to correlation risk")
                                     
                                     # Check additional gates before executing
-                                    if adaptive_lot > 0:
+                                    if adaptive_lot > 0 and portfolio_var < self.advanced_risk_manager.portfolio_risk_limit:
                                         logging.info(f"[{symbol}] [SCALP EXECUTE] {setup.setup_type} | Dir: {setup.direction} | "
-                                                   f"Lot: {adaptive_lot:.2f} | Confidence: {final_confidence:.3f}")
-                                        self.open_trade(symbol, setup.direction, final_confidence, position_size=adaptive_lot)
+                                                   f"Lot: {adaptive_lot:.2f} | Confidence: {final_confidence:.3f} | "
+                                                   f"MTF: {mtf_score:.2f} | Portfolio VaR: {portfolio_var:.3f}")
+                                        
+                                        # Open trade and setup exit management
+                                        ticket = self.open_trade(symbol, setup.direction, final_confidence, position_size=adaptive_lot)
+                                        
+                                        if ticket:
+                                            # Initialize dynamic exit manager for this trade
+                                            self.exit_managers[ticket] = DynamicExitManager(
+                                                initial_stop_pips=setup.stop_loss_pips,
+                                                target_pips=setup.target_pips
+                                            )
+                                            
+                                            self.active_exits[ticket] = {
+                                                'symbol': symbol,
+                                                'entry_price': setup.entry_price,
+                                                'direction': setup.direction,
+                                                'bars_held': 0,
+                                                'setup_type': setup.setup_type,
+                                                'volatility_regime': setup.volatility_regime.name,
+                                                'entry_time': datetime.now(timezone.utc)
+                                            }
+                                            
+                                            # Update sector exposure
+                                            self.advanced_risk_manager.update_sector_exposure(symbol, adaptive_lot, 'add')
+                                            
+                                            logging.info(f"[{symbol}] [EXIT] Dynamic exit manager initialized for ticket {ticket}")
+                                    
+                                    else:
+                                        if portfolio_var >= self.advanced_risk_manager.portfolio_risk_limit:
+                                            logging.info(f"[{symbol}] [BLOCK] Portfolio VaR limit exceeded: {portfolio_var:.3f}")
+                                        else:
+                                            logging.info(f"[{symbol}] [BLOCK] Lot size too small or risk constraints")
                     
                     except Exception as e:
                         logging.warning(f"[SCALPING] Error processing {symbol}: {e}")
-                
+
+                # ===== PHASE 3 ORDER FLOW ANALYSIS (NEW) =====
+                # Integrate real-time order flow signals with scalping decisions
+                try:
+                    # Get current tick data for order flow analysis
+                    tick_data = self.async_tick_handlers[symbol].get_recent_ticks(limit=100)
+
+                    if tick_data and len(tick_data) >= 10:
+                        # Update order flow analyzer with new tick data
+                        self.order_flow_analyzers[symbol].update_tick_buffer(tick_data)
+
+                        # Perform multi-scale analysis
+                        multi_scale_data = self.multi_scale_analyzers[symbol].analyze_all_scales(tick_data)
+
+                        # Generate order flow signals
+                        order_flow_signals = self.order_flow_signal_generators[symbol].generate_signals(
+                            tick_data=tick_data,
+                            multi_scale_data=multi_scale_data,
+                            market_regime=current_regime if 'current_regime' in locals() else 'NORMAL_VOLATILITY'
+                        )
+
+                        # Calculate confluence score across all signals
+                        confluence_analyzer = ConfluenceAnalyzer()
+                        confluence_score = confluence_analyzer.calculate_confluence_score(
+                            signals=order_flow_signals,
+                            weights=self.order_flow_signal_generators[symbol].signal_weights
+                        )
+
+                        # Apply regime-adaptive weighting
+                        regime_weighter = RegimeAdaptiveWeighter()
+                        regime_weights = regime_weighter.get_regime_weights(
+                            regime=current_regime if 'current_regime' in locals() else 'NORMAL_VOLATILITY',
+                            base_weights=self.order_flow_signal_generators[symbol].signal_weights
+                        )
+
+                        # Recalculate confluence with regime adaptation
+                        adaptive_confluence = confluence_analyzer.calculate_confluence_score(
+                            signals=order_flow_signals,
+                            weights=regime_weights
+                        )
+
+                        logging.info(f"[{symbol}] [ORDER FLOW] Signals: {len(order_flow_signals)} | "
+                                   f"Confluence: {confluence_score:.3f} | Adaptive: {adaptive_confluence:.3f}")
+
+                        # Integrate order flow with scalping decisions
+                        if adaptive_confluence >= self.order_flow_signal_generators[symbol].min_confluence_score:
+                            # Get the strongest order flow signal
+                            strongest_signal = max(order_flow_signals,
+                                                 key=lambda s: s.strength) if order_flow_signals else None
+
+                            if strongest_signal:
+                                # Boost scalping confidence with order flow confluence
+                                order_flow_boost = (adaptive_confluence - 0.5) * 0.3  # Max 30% boost
+
+                                # Apply to existing scalping logic if setup exists
+                                if 'final_confidence' in locals() and final_confidence > 0:
+                                    boosted_confidence = min(1.0, final_confidence + order_flow_boost)
+                                    logging.info(f"[{symbol}] [ORDER FLOW BOOST] {strongest_signal.signal_type} | "
+                                               f"Original: {final_confidence:.3f} | Boost: +{order_flow_boost:.3f} | "
+                                               f"Final: {boosted_confidence:.3f}")
+
+                                    # Update final confidence for scalping execution
+                                    final_confidence = boosted_confidence
+
+                                # Check for standalone order flow scalping opportunity
+                                elif ml_signal != 0 and ml_confidence >= effective_threshold * 0.8:
+                                    # Create micro-scalping setup from order flow
+                                    of_scalp_result = self._create_order_flow_scalp_setup(
+                                        symbol=symbol,
+                                        order_flow_signal=strongest_signal,
+                                        confluence_score=adaptive_confluence,
+                                        current_price=current_price if 'current_price' in locals() else None,
+                                        df=df_scalp if 'df_scalp' in locals() else None
+                                    )
+
+                                    if of_scalp_result:
+                                        of_setup, of_confidence = of_scalp_result
+                                        logging.info(f"[{symbol}] [ORDER FLOW SCALP] {of_setup.setup_type} | "
+                                                   f"Signal: {strongest_signal.signal_type} | Confidence: {of_confidence:.3f}")
+
+                                        # Execute order flow scalping trade
+                                        # (Similar logic to regular scalping but with order flow parameters)
+
+                except Exception as e:
+                    logging.warning(f"[ORDER FLOW] Error processing {symbol}: {e}")
+
                 # Manage ALL open trades (bot-generated and manual)
                 self.manage_all_trades()
                 
@@ -884,6 +1239,764 @@ class MultiSymbolAutoTrader:
             except Exception as e:
                 logging.error(f"[{symbol}] Error in main loop: {e}")
                 time.sleep(60)
+    
+    def manage_all_trades(self):
+        """
+        Advanced trade management with dynamic exits and performance tracking
+        """
+        try:
+            # Get all open positions
+            positions = mt5.positions_get()
+            if positions is None:
+                return
+            
+            current_time = datetime.now(timezone.utc)
+            
+            for position in positions:
+                ticket = position.ticket
+                symbol = position.symbol
+                direction = 1 if position.type == mt5.ORDER_TYPE_BUY else -1
+                entry_price = position.price_open
+                current_price = position.price_current
+                lot_size = position.volume
+                
+                # Get current ATR for dynamic stops
+                df_current = self._get_market_data_timeframe(symbol, 20, "M5")
+                if df_current is not None:
+                    current_atr = self._calculate_atr(df_current, 14)
+                else:
+                    current_atr = 0.0001  # fallback
+                
+                # Check if this is a scalping trade with exit management
+                if ticket in self.exit_managers:
+                    exit_info = self.active_exits[ticket]
+                    exit_manager = self.exit_managers[ticket]
+
+                    # Update bars held
+                    exit_info['bars_held'] += 1
+
+                    # Get current market regime for adaptive exits
+                    current_regime = self.scalping_engines[symbol].detect_market_regime(
+                        df_current, current_atr, self._get_current_spread(symbol)
+                    ).name if df_current is not None else 'NORMAL_VOLATILITY'
+
+                    # Get adaptive exit parameters
+                    adaptive_exit_params = self.adaptive_param_manager.get_regime_based_parameters(current_regime)
+
+                    # Apply adaptive trailing stop activation
+                    adaptive_trailing_activation = adaptive_exit_params.get('trailing_stop_activation', 1.0)
+                    profit_pips = (current_price - entry_price) * direction * 10000  # Approximate pips
+
+                    # Calculate dynamic stop with adaptive parameters
+                    dynamic_stop = exit_manager.calculate_dynamic_stop(
+                        current_price=current_price,
+                        entry_price=entry_price,
+                        direction=direction,
+                        atr_value=current_atr,
+                        bars_held=exit_info['bars_held'],
+                        trailing_activation=adaptive_trailing_activation
+                    )
+
+                    # Check for scale-out opportunities with adaptive levels
+                    adaptive_scale_levels = adaptive_exit_params.get('scale_out_levels', [1.0, 2.0, 3.0])
+                    adaptive_scale_sizes = adaptive_exit_params.get('scale_out_sizes', [0.3, 0.3, 0.4])
+
+                    # Update exit manager with adaptive scale levels
+                    exit_manager.scale_out_levels = adaptive_scale_levels
+                    exit_manager.scale_out_sizes = adaptive_scale_sizes
+
+                    should_scale, scale_size = exit_manager.should_scale_out(
+                        current_price=current_price,
+                        entry_price=entry_price,
+                        direction=direction,
+                        position_size=lot_size
+                    )
+
+                    if should_scale:
+                        # Partial close for profit
+                        close_result = self._partial_close_position(ticket, scale_size)
+                        if close_result:
+                            logging.info(f"[{symbol}] [SCALE OUT] Closed {scale_size:.2f} lots at {current_price:.5f} (adaptive)")
+
+                            # Update sector exposure
+                            self.advanced_risk_manager.update_sector_exposure(symbol, scale_size, 'remove')
+
+                    # Check time-based exit with adaptive limits
+                    adaptive_max_bars = adaptive_exit_params.get('max_bars_held', {}).get('M5', 8)
+                    should_time_exit = exit_manager.should_time_exit(
+                        bars_held=exit_info['bars_held'],
+                        volatility_regime=current_regime,
+                        max_bars_override=adaptive_max_bars
+                    )
+
+                    if should_time_exit:
+                        # Close entire position due to time limit
+                        close_result = self._close_position(ticket, f"Time exit after {exit_info['bars_held']} bars (adaptive)")
+                        if close_result:
+                            self._record_closed_trade(exit_info, current_price, current_time, "TIME_EXIT")
+                            logging.info(f"[{symbol}] [TIME EXIT] Closed after {exit_info['bars_held']} bars (adaptive limit: {adaptive_max_bars})")
+
+                    # Update stop loss if improved
+                    current_sl = position.sl
+                    if dynamic_stop != current_sl and dynamic_stop != 0:
+                        # Only tighten stops, don't loosen them
+                        if direction == 1 and dynamic_stop > current_sl:  # Long position
+                            self._modify_stop_loss(ticket, dynamic_stop)
+                        elif direction == -1 and (dynamic_stop < current_sl or current_sl == 0):  # Short position
+                            self._modify_stop_loss(ticket, dynamic_stop)
+                
+                # Log position status
+                pnl = position.profit
+                logging.info(
+                    f"[MANAGE] {symbol} {direction} | Ticket: {ticket} | "
+                    f"Entry: {entry_price:.5f} | Current: {current_price:.5f} | "
+                    f"P&L: {pnl:+.2f} | Lot: {lot_size:.2f}"
+                )
+        
+        except Exception as e:
+            logging.error(f"[MANAGE] Error in trade management: {e}")
+
+    # ===== MISSING HELPER METHODS =====
+    def _record_closed_trade(self, exit_info: Dict[str, Any], close_price: float,
+                           close_time: datetime, exit_reason: str):
+        """Record closed trade for performance analytics and adaptive learning"""
+
+        try:
+            symbol = exit_info['symbol']
+            entry_price = exit_info['entry_price']
+            direction = exit_info['direction']
+            setup_type = exit_info.get('setup_type', 'UNKNOWN')
+            bars_held = exit_info.get('bars_held', 0)
+
+            # Calculate P&L
+            if direction == 1:  # Long
+                pnl_pips = (close_price - entry_price) * 10000
+            else:  # Short
+                pnl_pips = (entry_price - close_price) * 10000
+
+            is_win = pnl_pips > 0
+
+            # Record in performance analytics
+            trade_result = {
+                'symbol': symbol,
+                'setup_type': setup_type,
+                'direction': direction,
+                'entry_price': entry_price,
+                'exit_price': close_price,
+                'pnl_pips': pnl_pips,
+                'bars_held': bars_held,
+                'exit_reason': exit_reason,
+                'timestamp': close_time.isoformat(),
+                'is_win': is_win
+            }
+
+            self.performance_analytics.record_trade(trade_result)
+
+            # Record for adaptive parameter learning
+            self.adaptive_param_manager.record_performance(symbol, trade_result)
+
+            # Record setup outcome for ML quality predictor
+            if hasattr(self, 'ml_quality_predictor') and exit_info.get('setup_features'):
+                outcome = 1 if is_win else 0
+                self.ml_quality_predictor.record_setup_outcome(exit_info['setup_features'], outcome)
+
+            # Clean up exit tracking
+            ticket = None
+            for t, info in self.active_exits.items():
+                if info == exit_info:
+                    ticket = t
+                    break
+
+            if ticket:
+                if ticket in self.exit_managers:
+                    del self.exit_managers[ticket]
+                if ticket in self.active_exits:
+                    del self.active_exits[ticket]
+
+            logging.info(f"[{symbol}] [TRADE CLOSED] {setup_type} | P&L: {pnl_pips:+.1f}p | "
+                        f"Bars: {bars_held} | Reason: {exit_reason}")
+
+        except Exception as e:
+            logging.error(f"Error recording closed trade: {e}")
+
+    def _partial_close_position(self, ticket: int, close_volume: float) -> bool:
+        """Partially close a position"""
+        try:
+            # Get position details
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                return False
+
+            position = position[0]
+            symbol = position.symbol
+            direction = position.type
+            lot_size = position.volume
+
+            if close_volume >= lot_size:
+                # Full close instead
+                return self._close_position(ticket, "Scale out to full close")
+
+            # Calculate close price (use current bid/ask)
+            if direction == mt5.ORDER_TYPE_BUY:
+                # Closing long position - use bid
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    close_price = tick.bid
+                else:
+                    return False
+            else:
+                # Closing short position - use ask
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    close_price = tick.ask
+                else:
+                    return False
+
+            # Execute partial close
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "volume": close_volume,
+                "type": mt5.ORDER_TYPE_SELL if direction == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                "price": close_price,
+                "deviation": 10,
+                "magic": 123456,
+                "comment": "Partial close",
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+
+            result = mt5.order_send(request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                logging.info(f"[{symbol}] Partial close successful: {close_volume} lots at {close_price}")
+                return True
+            else:
+                logging.error(f"[{symbol}] Partial close failed: {result}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error in partial close: {e}")
+            return False
+
+    def _close_position(self, ticket: int, comment: str = "") -> bool:
+        """Close a position completely"""
+        try:
+            # Get position details
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                return False
+
+            position = position[0]
+            symbol = position.symbol
+            direction = position.type
+            lot_size = position.volume
+
+            # Calculate close price
+            if direction == mt5.ORDER_TYPE_BUY:
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    close_price = tick.bid
+                else:
+                    return False
+            else:
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    close_price = tick.ask
+                else:
+                    return False
+
+            # Execute close
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "volume": lot_size,
+                "type": mt5.ORDER_TYPE_SELL if direction == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                "price": close_price,
+                "deviation": 10,
+                "magic": 123456,
+                "comment": comment,
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+
+            result = mt5.order_send(request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                logging.info(f"[{symbol}] Position closed: {lot_size} lots at {close_price} ({comment})")
+                return True
+            else:
+                logging.error(f"[{symbol}] Close failed: {result}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error closing position: {e}")
+            return False
+
+    def _modify_stop_loss(self, ticket: int, new_sl: float) -> bool:
+        """Modify stop loss for a position"""
+        try:
+            # Get position details
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                return False
+
+            position = position[0]
+            symbol = position.symbol
+
+            # Modify SL
+            request = {
+                "action": mt5.TRADE_ACTION_SLTP,
+                "symbol": symbol,
+                "sl": new_sl,
+                "tp": position.tp,  # Keep existing TP
+                "position": ticket,
+            }
+
+            result = mt5.order_send(request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                logging.info(f"[{symbol}] Stop loss modified to {new_sl}")
+                return True
+            else:
+                logging.error(f"[{symbol}] SL modification failed: {result}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error modifying stop loss: {e}")
+            return False
+
+    # ===== UTILITY METHODS =====
+    def _calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
+        """Calculate ATR value"""
+        if len(df) < period + 1:
+            return 0.0001
+
+        try:
+            high_low = df['high'] - df['low']
+            high_close = (df['high'] - df['close'].shift(1)).abs()
+            low_close = (df['low'] - df['close'].shift(1)).abs()
+
+            tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+            atr = tr.rolling(period).mean().iloc[-1]
+            return max(atr, 0.0001)
+        except:
+            return 0.0001
+
+    @staticmethod
+    def _calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+        """Calculate RSI"""
+        delta = series.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    def _get_current_spread(self, symbol: str) -> float:
+        """Get current spread in pips"""
+        try:
+            tick = mt5.symbol_info_tick(symbol)
+            if tick:
+                spread_points = tick.ask - tick.bid
+                # Convert to pips (assuming 4 decimal places for forex)
+                return spread_points * 10000
+            return 1.5  # Default spread
+        except:
+            return 1.5
+
+    def _get_market_data_timeframe(self, symbol: str, bars: int = 100, timeframe: str = "M5") -> Optional[pd.DataFrame]:
+        """Get market data for specific timeframe"""
+        try:
+            tf_map = {
+                "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+                "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+                "D1": mt5.TIMEFRAME_D1
+            }
+
+            tf = tf_map.get(timeframe.upper(), mt5.TIMEFRAME_M5)
+            rates = mt5.copy_rates_from_pos(symbol, tf, 0, bars)
+
+            if rates is None:
+                return None
+
+            df = pd.DataFrame(rates)
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            df = df[['time', 'open', 'high', 'low', 'close', 'tick_volume']]
+            df.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
+            return df
+
+        except Exception as e:
+            logging.error(f"Error getting {timeframe} data for {symbol}: {e}")
+            return None
+
+    def get_balance(self) -> float:
+        """Get account balance"""
+        try:
+            account_info = mt5.account_info()
+            return account_info.balance if account_info else 10000.0
+        except:
+            return 10000.0
+
+    def _create_order_flow_scalp_setup(self, symbol: str, order_flow_signal, confluence_score: float,
+                                      current_price: float = None, df: pd.DataFrame = None):
+        """Create a scalping setup from order flow signals"""
+        try:
+            if not order_flow_signal or not current_price:
+                return None
+
+            # Get scalping engine for the symbol
+            scalping_engine = self.scalping_engines.get(symbol)
+            if not scalping_engine:
+                return None
+
+            # Create a micro-scalping setup based on order flow
+            direction = 1 if order_flow_signal.direction == 'bullish' else -1
+
+            # Use tighter stops for order flow scalps (microstructure-based)
+            stop_loss_pips = 15  # Tighter than regular scalps
+            target_pips = 30     # Smaller target
+
+            # Calculate entry price with micro-adjustment based on order flow
+            entry_offset = order_flow_signal.strength * 0.0001  # Micro adjustment
+            entry_price = current_price + (entry_offset * direction)
+
+            # Create setup object (similar to regular scalping setup)
+            class OrderFlowScalpSetup:
+                def __init__(self, setup_type, direction, entry_price, stop_loss_pips, target_pips,
+                           volatility_regime, confluence_score):
+                    self.setup_type = setup_type
+                    self.direction = direction
+                    self.entry_price = entry_price
+                    self.stop_loss_pips = stop_loss_pips
+                    self.target_pips = target_pips
+                    self.volatility_regime = volatility_regime
+                    self.confluence_score = confluence_score
+
+            # Determine setup type based on order flow signal
+            setup_type_map = {
+                'volume_imbalance': 'OF_Volume_Imbalance',
+                'order_book_pressure': 'OF_Order_Book_Pressure',
+                'tick_flow': 'OF_Tick_Flow',
+                'volume_profile': 'OF_Volume_Profile',
+                'momentum_divergence': 'OF_Momentum_Divergence',
+                'regime_shift': 'OF_Regime_Shift',
+                'liquidity_void': 'OF_Liquidity_Void',
+                'aggression_imbalance': 'OF_Aggression_Imbalance'
+            }
+
+            setup_type = setup_type_map.get(order_flow_signal.signal_type, 'OF_Generic')
+
+            # Detect current volatility regime
+            if df is not None and len(df) >= 10:
+                atr_value = self._calculate_atr(df, 14)
+                spread_pips = self._get_current_spread(symbol)
+                volatility_regime = scalping_engine.detect_market_regime(df, atr_value, spread_pips)
+            else:
+                # Default regime
+                class DefaultRegime:
+                    name = 'NORMAL_VOLATILITY'
+                volatility_regime = DefaultRegime()
+
+            # Calculate confidence based on confluence and signal strength
+            base_confidence = order_flow_signal.strength * 0.8  # 80% weight on signal strength
+            confluence_boost = confluence_score * 0.2           # 20% weight on confluence
+            final_confidence = min(1.0, base_confidence + confluence_boost)
+
+            setup = OrderFlowScalpSetup(
+                setup_type=setup_type,
+                direction=direction,
+                entry_price=entry_price,
+                stop_loss_pips=stop_loss_pips,
+                target_pips=target_pips,
+                volatility_regime=volatility_regime,
+                confluence_score=confluence_score
+            )
+
+            return setup, final_confidence
+
+        except Exception as e:
+            logging.error(f"Error creating order flow scalp setup for {symbol}: {e}")
+            return None
+
+
+# ===== MAIN EXECUTION =====
+    
+    def _partial_close_position(self, ticket: int, close_volume: float) -> bool:
+        """Partially close a position"""
+        try:
+            # Get position details
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                return False
+            
+            position = position[0]
+            symbol = position.symbol
+            direction = position.type
+            lot_size = position.volume
+            
+            if close_volume >= lot_size:
+                # Full close instead
+                return self._close_position(ticket, "Scale out to full close")
+            
+            # Calculate close price (use current bid/ask)
+            if direction == mt5.ORDER_TYPE_BUY:
+                # Closing long position - use bid
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    close_price = tick.bid
+                else:
+                    return False
+            else:
+                # Closing short position - use ask
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    close_price = tick.ask
+                else:
+                    return False
+            
+            # Send partial close order
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "volume": close_volume,
+                "type": mt5.ORDER_TYPE_SELL if direction == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                "position": ticket,
+                "price": close_price,
+                "deviation": 10,
+                "magic": 0,
+                "comment": "Partial Close",
+                "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+            
+            result = mt5.order_send(request)
+            return result is not None and result.retcode == mt5.TRADE_RETCODE_DONE
+            
+        except Exception as e:
+            logging.error(f"[PARTIAL CLOSE] Error closing {close_volume} lots of ticket {ticket}: {e}")
+            return False
+    
+    def _close_position(self, ticket: int, reason: str = "") -> bool:
+        """Close a position completely"""
+        try:
+            # Get position details
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                return False
+            
+            position = position[0]
+            symbol = position.symbol
+            direction = position.type
+            lot_size = position.volume
+            
+            # Get close price
+            tick = mt5.symbol_info_tick(symbol)
+            if not tick:
+                return False
+            
+            close_price = tick.bid if direction == mt5.ORDER_TYPE_BUY else tick.ask
+            
+            # Send close order
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "volume": lot_size,
+                "type": mt5.ORDER_TYPE_SELL if direction == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                "position": ticket,
+                "price": close_price,
+                "deviation": 10,
+                "magic": 0,
+                "comment": f"Close: {reason}",
+                "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+            
+            result = mt5.order_send(request)
+            success = result is not None and result.retcode == mt5.TRADE_RETCODE_DONE
+            
+            if success:
+                # Clean up exit management
+                if ticket in self.exit_managers:
+                    del self.exit_managers[ticket]
+                if ticket in self.active_exits:
+                    exit_info = self.active_exits[ticket]
+                    # Update sector exposure
+                    self.advanced_risk_manager.update_sector_exposure(
+                        exit_info['symbol'], exit_info.get('original_size', lot_size), 'remove'
+                    )
+                    del self.active_exits[ticket]
+            
+            return success
+            
+        except Exception as e:
+            logging.error(f"[CLOSE] Error closing ticket {ticket}: {e}")
+            return False
+    
+    def _modify_stop_loss(self, ticket: int, new_sl: float):
+        """Modify stop loss for a position"""
+        try:
+            request = {
+                "action": mt5.TRADE_ACTION_SLTP,
+                "position": ticket,
+                "sl": new_sl,
+                "tp": 0.0,  # Keep take profit unchanged
+            }
+            
+            result = mt5.order_send(request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                logging.info(f"[MODIFY] Updated SL for ticket {ticket} to {new_sl:.5f}")
+            else:
+                logging.warning(f"[MODIFY] Failed to update SL for ticket {ticket}")
+                
+        except Exception as e:
+            logging.error(f"[MODIFY] Error modifying SL for ticket {ticket}: {e}")
+    
+    def _record_closed_trade(self, exit_info: Dict[str, Any], close_price: float, close_time: datetime, exit_reason: str):
+        """Record completed trade for performance analytics"""
+        try:
+            entry_price = exit_info['entry_price']
+            direction = exit_info['direction']
+            symbol = exit_info['symbol']
+            
+            # Calculate P&L
+            if direction == 1:  # Long
+                pnl_pips = (close_price - entry_price) / 10**4 * 10000
+            else:  # Short
+                pnl_pips = (entry_price - close_price) / 10**4 * 10000
+            
+            # Convert to USD (approximate)
+            tick_value = 1.0 if symbol.endswith('USD') else 0.01  # Rough approximation
+            pnl_usd = pnl_pips * tick_value
+            
+            # Record in analytics
+            self.performance_analytics.record_trade(
+                symbol=symbol,
+                setup_type=exit_info['setup_type'],
+                direction=direction,
+                entry_time=exit_info['entry_time'],
+                exit_time=close_time,
+                pnl=pnl_usd,
+                bars_held=exit_info['bars_held'],
+                volatility_regime=exit_info['volatility_regime'],
+                session=self.scalping_integration.get_strategy_for_time()[2]['session']
+            )
+            
+            logging.info(
+                f"[TRADE CLOSED] {symbol} | Setup: {exit_info['setup_type']} | "
+                f"P&L: {pnl_usd:+.2f} | Bars: {exit_info['bars_held']} | Reason: {exit_reason}"
+            )
+            
+        except Exception as e:
+            logging.error(f"[RECORD] Error recording closed trade: {e}")
+    
+    def get_all_open_positions(self) -> List[Dict[str, Any]]:
+        """Get all open positions with detailed information"""
+        try:
+            positions = mt5.positions_get()
+            if positions is None:
+                return []
+            
+            position_list = []
+            for pos in positions:
+                position_list.append({
+                    'ticket': pos.ticket,
+                    'symbol': pos.symbol,
+                    'type': pos.type,
+                    'volume': pos.volume,
+                    'price_open': pos.price_open,
+                    'price_current': pos.price_current,
+                    'profit': pos.profit,
+                    'sl': pos.sl,
+                    'tp': pos.tp,
+                    'swap': pos.swap,
+                    'commission': pos.commission
+                })
+            
+            return position_list
+            
+        except Exception as e:
+            logging.error(f"[POSITIONS] Error getting open positions: {e}")
+            return []
+    
+    def get_balance(self) -> float:
+        """Get current account balance"""
+        try:
+            account_info = mt5.account_info()
+            return account_info.balance if account_info else 0.0
+        except Exception as e:
+            logging.error(f"[BALANCE] Error getting balance: {e}")
+            return 0.0
+    
+    def _calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Average True Range"""
+        if df is None or len(df) < period + 1:
+            return 0.0001  # Default ATR
+        
+        try:
+            high = df['high']
+            low = df['low']
+            close = df['close'].shift(1)
+            
+            tr = pd.concat([
+                high - low,
+                (high - close).abs(),
+                (low - close).abs()
+            ], axis=1).max(axis=1)
+            
+            atr = tr.rolling(window=period).mean().iloc[-1]
+            return atr if not pd.isna(atr) else 0.0001
+            
+        except Exception as e:
+            logging.warning(f"[ATR] Error calculating ATR: {e}")
+            return 0.0001
+    
+    def _get_current_spread(self, symbol: str) -> float:
+        """Get current bid-ask spread in pips"""
+        try:
+            tick = mt5.symbol_info_tick(symbol)
+            if tick:
+                spread_pips = (tick.ask - tick.bid) / 10**4 * 10000
+                return spread_pips
+            return 1.5  # Default spread
+        except Exception as e:
+            logging.warning(f"[SPREAD] Error getting spread for {symbol}: {e}")
+            return 1.5
+    
+    def _get_market_data_timeframe(self, symbol: str, bars: int = 100, timeframe: str = "M5") -> Optional[pd.DataFrame]:
+        """Get market data for specific timeframe"""
+        try:
+            # Timeframe mapping
+            tf_map = {
+                "M1": mt5.TIMEFRAME_M1,
+                "M5": mt5.TIMEFRAME_M5,
+                "M10": mt5.TIMEFRAME_M10,
+                "M15": mt5.TIMEFRAME_M15,
+                "M20": mt5.TIMEFRAME_M20,
+                "M30": mt5.TIMEFRAME_M30,
+                "1H": mt5.TIMEFRAME_H1,
+                "2H": mt5.TIMEFRAME_H2,
+                "3H": mt5.TIMEFRAME_H3,
+                "4H": mt5.TIMEFRAME_H4,
+                "H4": mt5.TIMEFRAME_H4,
+                "1D": mt5.TIMEFRAME_D1,
+                "D1": mt5.TIMEFRAME_D1,
+            }
+            
+            mt5_tf = tf_map.get(timeframe.upper(), mt5.TIMEFRAME_M5)
+            
+            rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, bars)
+            if rates is None:
+                logging.warning(f"No data for {symbol} on {timeframe}")
+                return None
+            
+            df = pd.DataFrame(rates)
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            df = df.rename(columns={
+                'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close',
+                'tick_volume': 'volume'
+            })
+            
+            return df[['time', 'open', 'high', 'low', 'close', 'volume']]
+            
+        except Exception as e:
+            logging.warning(f"Error fetching {timeframe} data for {symbol}: {e}")
+            return None
                 
     def run(self, check_interval: int = 300):
         """
