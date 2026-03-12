@@ -634,7 +634,7 @@ class ScalpingEngine:
         # Calculate EMAs
         df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
         df['EMA50'] = df['close'].ewm(span=50, adjust=False).mean()
-        df['RSI'] = self._calculate_rsi(df['close'], period=7)
+        df['RSI'] = ScalpingEngine._calculate_rsi(df['close'], period=7)
         
         latest = df.iloc[-1]
         ema20 = latest['EMA20']
@@ -710,7 +710,7 @@ class ScalpingEngine:
         
         # Calculate momentum
         df['Momentum'] = df['close'].diff(3)
-        df['RSI'] = self._calculate_rsi(df['close'], period=7)
+        df['RSI'] = ScalpingEngine._calculate_rsi(df['close'], period=7)
         
         latest = df.iloc[-1]
         vwap = latest['VWAP']

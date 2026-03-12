@@ -75,6 +75,12 @@ class MultiSymbolAutoTrader:
         self._ml_diag_logged_symbols: Set[str] = set()
         self.is_running = False
         
+        # Risk Management Thresholds
+        self.max_daily_loss = 100.0  # Max loss before stopping trading ($)
+        self.max_account_drawdown_percent = 5.0  # Max drawdown % before closing all positions
+        self.max_consecutive_losses = 5  # Stop opening new trades after N consecutive losses
+        self.consecutive_loss_counter = 0  # Track consecutive losing trades
+        
         # MT5 timeframe mapping
         self.timeframe_map = {
             "1M": mt5.TIMEFRAME_M1,
@@ -589,24 +595,28 @@ class MultiSymbolAutoTrader:
                 if probabilities.shape[0] < 2:
                     return 0, 0.0
 
-                prob_down = float(probabilities[0])
-                prob_up = float(probabilities[1])
-                confidence = max(prob_up, prob_down)
+                prob_sell = float(probabilities[0])  # Probability of price going down
+                prob_buy = float(probabilities[1])   # Probability of price going up
+                confidence = max(prob_buy, prob_sell)
 
                 # Use symbol-specific optimal threshold
-                effective_threshold = self.symbol_optimal_thresholds.get(symbol, self.ml_threshold)
+                base_threshold = self.symbol_optimal_thresholds.get(symbol, self.ml_threshold)
+                
+                # Use lower threshold for BUY signals to balance the bias towards SELL predictions
+                buy_threshold = base_threshold * 0.8  # 20% lower threshold for BUY
+                sell_threshold = base_threshold
                 
                 # Log signal details periodically
                 if diag_key not in self._ml_diag_logged_symbols or np.random.random() < 0.05:  # Log 5% of signals
                     logging.info(
-                        f"[ML SIGNAL] {symbol} | BUY={prob_up:.3f} SELL={prob_down:.3f} | "
-                        f"threshold={effective_threshold:.2f} | "
-                        f"signal={'BUY' if prob_up >= effective_threshold and prob_up > prob_down else 'SELL' if prob_down >= effective_threshold and prob_down > prob_up else 'HOLD'}"
+                        f"[ML SIGNAL] {symbol} | BUY={prob_buy:.3f} SELL={prob_sell:.3f} | "
+                        f"buy_thresh={buy_threshold:.2f} sell_thresh={sell_threshold:.2f} | "
+                        f"signal={'BUY' if prob_buy >= buy_threshold and prob_buy > prob_sell else 'SELL' if prob_sell >= sell_threshold and prob_sell > prob_buy else 'HOLD'}"
                     )
 
-                if prob_up >= effective_threshold and prob_up > prob_down:
+                if prob_buy >= buy_threshold and prob_buy > prob_sell:
                     return 1, confidence
-                if prob_down >= effective_threshold and prob_down > prob_up:
+                if prob_sell >= sell_threshold and prob_sell > prob_buy:
                     return -1, confidence
 
                 return 0, confidence
@@ -836,6 +846,22 @@ class MultiSymbolAutoTrader:
                 
         except Exception as e:
             logging.error(f"Error closing position {pos.ticket}: {e}")
+    
+    def _close_all_positions(self):
+        """Emergency close all open positions (critical loss management)"""
+        try:
+            all_positions = self.get_all_open_positions()
+            logging.warning(f"[EMERGENCY] Closing all {len(all_positions)} open positions")
+            
+            for pos in all_positions:
+                try:
+                    self._close_position(pos)
+                    time.sleep(0.5)  # Brief delay between closes
+                except Exception as e:
+                    logging.error(f"Error closing position {pos.ticket}: {e}")
+                    
+        except Exception as e:
+            logging.error(f"Error in emergency close all: {e}")
             
     def open_trade(self, symbol: str, signal: int, confidence: float):
         """Open a trade for a specific symbol"""
@@ -884,13 +910,26 @@ class MultiSymbolAutoTrader:
                 
             current_price = df['Close'].iloc[-1]
             
+            # Calculate SL and TP with proper point conversion
+            # Each pip = 10 * point (for most currency pairs)
+            point_value = symbol_info.point
+            pip_distance = stop_loss_pips * 10 * point_value  # 50 pips in price units
+            
+            # Ensure minimum distance based on symbol's ask/bid spread
+            ask_bid_spread = symbol_info.ask - symbol_info.bid if hasattr(symbol_info, 'ask') else 0
+            min_distance = max(pip_distance, ask_bid_spread * 2)  # At least 2x spread
+            
             # Create order
             if signal == 1:
                 order_type = mt5.ORDER_TYPE_BUY
                 order_comment = f"ML_BUY_{confidence:.2f}"
+                sl = current_price - min_distance
+                tp = current_price + (min_distance * 2)
             else:
                 order_type = mt5.ORDER_TYPE_SELL
                 order_comment = f"ML_SELL_{confidence:.2f}"
+                sl = current_price + min_distance
+                tp = current_price - (min_distance * 2)
             
             request = {
                 "action": mt5.TRADE_ACTION_DEAL,
@@ -898,8 +937,8 @@ class MultiSymbolAutoTrader:
                 "volume": lot_size,
                 "type": order_type,
                 "price": current_price,
-                "sl": current_price - (50 * symbol_info.point) if signal == 1 else current_price + (50 * symbol_info.point),
-                "tp": current_price + (100 * symbol_info.point) if signal == 1 else current_price - (100 * symbol_info.point),
+                "sl": sl,
+                "tp": tp,
                 "comment": order_comment,
                 "type_filling": mt5.ORDER_FILLING_FOK,
                 "type_time": mt5.ORDER_TIME_GTC,
@@ -920,6 +959,43 @@ class MultiSymbolAutoTrader:
         
         while self.is_running:
             try:
+                # ===== CRITICAL LOSS MANAGEMENT CHECK =====
+                account_info = mt5.account_info()
+                if account_info:
+                    # Check daily loss limit
+                    if account_info.profit < -self.max_daily_loss:
+                        logging.error(
+                            f"[CRITICAL] Daily loss limit exceeded: ${account_info.profit:.2f} < -${self.max_daily_loss}. "
+                            f"STOPPING ALL TRADING"
+                        )
+                        self.is_running = False
+                        self._close_all_positions()
+                        break
+                    
+                    # Check account drawdown
+                    drawdown_percent = (account_info.profit / account_info.balance) * 100 if account_info.balance > 0 else 0
+                    if drawdown_percent < -self.max_account_drawdown_percent:
+                        logging.warning(
+                            f"[RISK] Account drawdown: {drawdown_percent:.2f}% (limit: {-self.max_account_drawdown_percent}%). "
+                            f"Pausing new trades, managing existing positions only"
+                        )
+                        # Don't open new trades, but continue managing existing ones
+                        time.sleep(check_interval)
+                        continue
+                    
+                    # Check consecutive losses (count trades in last hour)
+                    all_positions = self.get_all_open_positions()
+                    if len(all_positions) > 0:
+                        # Count positions with losses
+                        loss_count = sum(1 for pos in all_positions if pos.profit < 0)
+                        if loss_count >= self.max_consecutive_losses:
+                            logging.warning(
+                                f"[RISK] Too many losing positions ({loss_count}/{self.max_consecutive_losses}). "
+                                f"Pausing new trades"
+                            )
+                            time.sleep(check_interval)
+                            continue
+                
                 # Get market data
                 df = self.get_market_data(symbol, 100)
                 if df is None:
@@ -966,15 +1042,6 @@ class MultiSymbolAutoTrader:
                         self.open_trade(symbol, smc_signal, 0.5)
                     else:
                         logging.info(f"[{symbol}] [HOLD] No SMC signal")
-                
-                # ===== SCALPING OPPORTUNITY CHECK (NEW) =====
-                # Check if we should attempt scalping on M1/M5
-                if self.scalping_integration.scalping_enabled:
-                    try:
-                        if self.scalping_integration.should_scalp_symbol(symbol):
-                            
-                            # Get M5 data for scalping analysis
-                            df_scalp = self._get_market_data_timeframe(symbol, bars=50, timeframe="M5")
                             
                             if df_scalp is not None and len(df_scalp) >= 10:
                                 current_price = float(df_scalp['close'].iloc[-1])
@@ -1149,7 +1216,9 @@ class MultiSymbolAutoTrader:
                 # Integrate real-time order flow signals with scalping decisions
                 try:
                     # Get current tick data for order flow analysis
-                    tick_data = self.async_tick_handlers[symbol].get_recent_ticks(limit=100)
+                    # TODO: Implement get_recent_ticks method in AsyncTickHandler
+                    # tick_data = self.async_tick_handlers[symbol].get_recent_ticks(limit=100)
+                    tick_data = None  # Temporarily disabled
 
                     if tick_data and len(tick_data) >= 10:
                         # Update order flow analyzer with new tick data
@@ -1905,7 +1974,7 @@ class MultiSymbolAutoTrader:
                     'sl': pos.sl,
                     'tp': pos.tp,
                     'swap': pos.swap,
-                    'commission': pos.commission
+                    'commission': getattr(pos, 'commission', 0.0)
                 })
             
             return position_list

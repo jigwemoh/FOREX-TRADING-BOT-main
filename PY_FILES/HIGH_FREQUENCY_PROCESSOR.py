@@ -214,6 +214,27 @@ class AsyncTickHandler:
             'exceeded_max_latency': self.exceeded_latency_count
         }
 
+    def get_recent_ticks(self, limit: int = 100) -> List[Any]:
+        """
+        Get recent ticks from the queue (non-destructive).
+        Used for order flow analysis.
+
+        Args:
+            limit: Maximum number of recent ticks to return
+
+        Returns:
+            List of recent tick objects
+        """
+        try:
+            # Get items from queue without removing them
+            temp_queue = list(self.tick_queue._queue) if hasattr(self.tick_queue, '_queue') else []
+            
+            # Return most recent ticks up to limit
+            return temp_queue[-limit:] if temp_queue else []
+        except Exception as e:
+            logger.warning(f"[{self.symbol}] Error getting recent ticks: {e}")
+            return []
+
 
 class MultiScaleAnalyzer:
     """
