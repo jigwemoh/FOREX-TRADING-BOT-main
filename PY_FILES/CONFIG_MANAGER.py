@@ -47,6 +47,8 @@ class ConfigManager:
         take_profit_pips = float(input("Take profit in pips (default: 100): ") or "100")
         trailing_stop_pips = float(input("Trailing stop in pips (default: 30): ") or "30")
         breakeven_gap_pips = float(input("Breakeven gap in pips (move SL to entry+gap after profit, default: 0): ") or "0")
+        # scalping-specific risk (percent of account balance)
+        scalping_daily_loss = float(input("Scalping max daily loss % (0 to disable, default: 2.0): ") or "2.0")
         
         # Execution
         print("\n[Execution]")
@@ -70,13 +72,17 @@ class ConfigManager:
                 "timeframe": timeframe,
                 "risk_percent": risk_percent,
                 "max_positions": max_positions,
-                "use_ml": use_ml
+                "use_ml": use_ml,
+                # scalping-specific settings
+                "scalping": {
+                    "max_daily_loss": scalping_daily_loss / 100.0
+                }
             },
             "risk_management": {
                 "stop_loss_pips": stop_loss_pips,
                 "take_profit_pips": take_profit_pips,
-                "trailing_stop_pips": trailing_stop_pips
-                ,"breakeven_gap_pips": breakeven_gap_pips
+                "trailing_stop_pips": trailing_stop_pips,
+                "breakeven_gap_pips": breakeven_gap_pips
             },
             "execution": {
                 "check_interval": check_interval,

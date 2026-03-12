@@ -78,7 +78,8 @@ class MultiSymbolAutoTrader:
         use_ml: bool = True,
         ml_threshold: float = 0.55
         ,
-        breakeven_gap_pips: float = 0.0
+        breakeven_gap_pips: float = 0.0,
+        max_daily_loss_pct: float = 0.0
     ):
         self.symbols = symbols or ["EURUSD"]
         self.timeframe = timeframe
@@ -95,9 +96,11 @@ class MultiSymbolAutoTrader:
         self._ml_diag_logged_symbols: Set[str] = set()
         self.is_running = False
         self.breakeven_gap_pips = breakeven_gap_pips
-        
+        # percent-based daily loss limit (0 disables, fallback to dollar amount)
+        self.max_daily_loss_pct = max_daily_loss_pct
+
         # Risk Management Thresholds
-        self.max_daily_loss = 100.0  # Max loss before stopping trading ($)
+        self.max_daily_loss = 100.0  # Max loss before stopping trading ($) (legacy)
         self.max_account_drawdown_percent = 5.0  # Max drawdown % before closing all positions
         self.max_consecutive_losses = 5  # Stop opening new trades after N consecutive losses
         self.consecutive_loss_counter = 0  # Track consecutive losing trades
@@ -1027,15 +1030,26 @@ class MultiSymbolAutoTrader:
                 # ===== CRITICAL LOSS MANAGEMENT CHECK =====
                 account_info = mt5.account_info()
                 if account_info:
-                    # Check daily loss limit
-                    if account_info.profit < -self.max_daily_loss:
-                        logging.error(
-                            f"[CRITICAL] Daily loss limit exceeded: ${account_info.profit:.2f} < -${self.max_daily_loss}. "
-                            f"STOPPING ALL TRADING"
-                        )
-                        self.is_running = False
-                        self._close_all_positions()
-                        break
+                    # Determine loss threshold: percent of balance takes precedence
+                    if self.max_daily_loss_pct > 0:
+                        # unrealized profit used as proxy; negative value indicates loss
+                        threshold = -account_info.balance * self.max_daily_loss_pct
+                        if account_info.profit < threshold:
+                            logging.error(
+                                f"[CRITICAL] Daily loss limit exceeded: ${account_info.profit:.2f} < ${threshold:.2f} ({self.max_daily_loss_pct:.2%} of balance). STOPPING ALL TRADING"
+                            )
+                            self.is_running = False
+                            self._close_all_positions()
+                            break
+                    else:
+                        # legacy dollar-based limit
+                        if account_info.profit < -self.max_daily_loss:
+                            logging.error(
+                                f"[CRITICAL] Daily loss limit exceeded: ${account_info.profit:.2f} < -${self.max_daily_loss}. STOPPING ALL TRADING"
+                            )
+                            self.is_running = False
+                            self._close_all_positions()
+                            break
                     
                     # Check account drawdown
                     drawdown_percent = (account_info.profit / account_info.balance) * 100 if account_info.balance > 0 else 0
@@ -2099,6 +2113,8 @@ if __name__ == "__main__":
     USE_ML = bool(trading_cfg.get("use_ml", True))
     ML_THRESHOLD = float(trading_cfg.get("ml_threshold", 0.55))
     BREAKEVEN_GAP = float(risk_cfg.get("breakeven_gap_pips", 0.0))
+    # percent of account balance permitted to lose in a single day (from trading.scalping.max_daily_loss)
+    SCALPING_MAX_DAILY_LOSS_PCT = float(trading_cfg.get("scalping", {}).get("max_daily_loss", 0.0))
     CHECK_INTERVAL = int(execution_cfg.get("check_interval", 300))
     
     # Create trader
@@ -2109,9 +2125,9 @@ if __name__ == "__main__":
         max_positions=MAX_POSITIONS,
         max_positions_global=MAX_POSITIONS_GLOBAL,
         use_ml=USE_ML,
-        ml_threshold=ML_THRESHOLD
-        ,
-        breakeven_gap_pips=BREAKEVEN_GAP
+        ml_threshold=ML_THRESHOLD,
+        breakeven_gap_pips=BREAKEVEN_GAP,
+        max_daily_loss_pct=SCALPING_MAX_DAILY_LOSS_PCT
     )
     
     # Initialize MT5
