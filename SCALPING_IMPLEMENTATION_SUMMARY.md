@@ -198,6 +198,18 @@ Adapts timeframe and risk based on time:
 
 Stops trading when:
 - 4 consecutive losses (revenge trading prevention)
+
+---
+
+### 🛠 Troubleshooting
+
+* **Bot unexpectedly stops or threads die on Windows** – earlier versions logged a ✓
+  character which the default `cp1252` console encoding could not handle. The
+  resulting `UnicodeEncodeError` occurred inside the logging module and made the
+  worker thread exit silently.  All logging calls have since been sanitized and
+  a safe stream handler is used; update your copy (`git pull`) to get the fix.
+  If you still see the error, remove any non‑ASCII characters from custom log
+  messages or run Python with UTF‑8 mode (`python -X utf8`).
 - Daily loss > -6% (capital preservation)
 - Volatility in EXTREME regime (execution risk)
 - News window active (spread explosion risk)
