@@ -47,6 +47,24 @@ logging.basicConfig(
     ]
 )
 
+# Wrap stream handler to avoid crashes on Windows consoles when a
+# non‑cp1252 character (e.g. ✓) is logged.  Without this the bot would
+# raise ``UnicodeEncodeError`` inside the logging module and the
+# associated thread would silently die, giving the impression that the
+# trader had stopped managing the account.
+for _handler in logging.getLogger().handlers:
+    if isinstance(_handler, logging.StreamHandler):
+        orig_emit = _handler.emit
+        from typing import Callable
+
+        def _safe_emit(record: logging.LogRecord, orig: Callable[[logging.LogRecord], None] = orig_emit):
+            try:
+                orig(record)
+            except UnicodeEncodeError:
+                record.msg = record.getMessage().encode('ascii', errors='replace').decode('ascii')
+                orig(record)
+        _handler.emit = _safe_emit
+
 class MultiSymbolAutoTrader:
     """Automated trading bot with ML predictions and risk management for multiple symbols"""
     

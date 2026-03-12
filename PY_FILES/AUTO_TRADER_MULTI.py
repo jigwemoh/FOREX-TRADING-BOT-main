@@ -29,6 +29,28 @@ logging.basicConfig(
     ]
 )
 
+# On Windows consoles the default encoding (cp1252) can't handle some
+# unicode characters (e.g. check marks) which causes a
+# ``UnicodeEncodeError`` inside the logging subsystem. In earlier runs
+# this would bubble up and terminate the worker thread, giving the
+# appearance that the bot "shut down".  We wrap the stream handler's
+# ``emit`` method to catch encoding errors and fall back to an ASCII
+# representation so that a bad character never kills the program.
+for _handler in logging.getLogger().handlers:
+    if isinstance(_handler, logging.StreamHandler):
+        orig_emit = _handler.emit
+        from typing import Callable
+
+        def _safe_emit(record: logging.LogRecord, orig: Callable[[logging.LogRecord], None] = orig_emit):
+            try:
+                orig(record)
+            except UnicodeEncodeError:
+                # replace any non‑ascii character so the message still
+                # appears and the thread continues running
+                record.msg = record.getMessage().encode('ascii', errors='replace').decode('ascii')
+                orig(record)
+        _handler.emit = _safe_emit
+
 class MultiSymbolAutoTrader:
     """Automated trading bot with ML predictions and risk management for multiple symbols"""
     
