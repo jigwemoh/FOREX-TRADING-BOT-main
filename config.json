@@ -18,6 +18,8 @@
       "max_daily_loss": 0.02,
       "max_consecutive_losses": 2,
       "reward_ratio": 1.5,
+      "confluence_filtering": true,
+      "min_confluence_signals": 2,
       "max_bars_held": {
         "M1": 5,
         "M5": 12,
@@ -155,8 +157,8 @@
     }
   },
   "risk_management": {
-    "stop_loss_pips": 50,
-    "take_profit_pips": 100,
+    "stop_loss_pips": 25,
+    "take_profit_pips": 75,
     "trailing_stop_pips": 30,
     "breakeven_gap_pips": 0
   },
