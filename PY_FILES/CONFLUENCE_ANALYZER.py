@@ -5,9 +5,8 @@ Evaluates multiple technical signals to improve entry quality
 """
 
 import pandas as pd
-import numpy as np
 import logging
-from typing import Dict, List
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +14,14 @@ logger = logging.getLogger(__name__)
 class ConfluenceAnalyzer:
     """Analyzes multiple signals for high-confidence entries"""
     
-    def __init__(self, config: Dict = None):
+    def __init__(self, config: Dict[str, Any] | None = None):
         self.config = config or {}
         self.enabled = self.config.get("confluence_filtering", True)
         self.min_signals = self.config.get("min_confluence_signals", 2)
         self.rsi_oversold = self.config.get("rsi_oversold_threshold", 30)
         self.rsi_overbought = self.config.get("rsi_overbought_threshold", 70)
     
-    def analyze(self, df: pd.DataFrame, direction: int = 1) -> Dict[str, int]:
+    def analyze(self, df: pd.DataFrame, direction: int = 1) -> Dict[str, Any]:
         """
         Analyze confluence signals for a direction (1=BUY, -1=SELL)
         Returns dict with signal counts and details
@@ -92,7 +91,7 @@ class ConfluenceAnalyzer:
                 close = last.get("Close", 0)
                 bb_low = last.get("BB_L", 0)
                 bb_high = last.get("BB_H", 0)
-                bb_mid = last.get("BB_Mid", close)
+                _ = last.get('BB_Mid', close)  # BB midline (not used in current logic)
                 
                 if bb_low > 0 and bb_high > 0:
                     bb_range = bb_high - bb_low
@@ -125,7 +124,7 @@ class ConfluenceAnalyzer:
         signals = self.analyze(df, direction)
         return signals["total_confluence"] >= self.min_signals
     
-    def get_signal_summary(self, signals: Dict) -> str:
+    def get_signal_summary(self, signals: Dict[str, Any]) -> str:
         """Get human-readable summary of signals"""
         parts = []
         if signals.get("ema_trend"):
@@ -140,7 +139,7 @@ class ConfluenceAnalyzer:
         return f"[{signals['total_confluence']}/4: {' '.join(parts)}]"
 
 
-def get_confluence_config(base_config: Dict) -> Dict:
+def get_confluence_config(base_config: Dict[str, Any]) -> Dict[str, Any]:
     """Extract confluence config from base config"""
     trading_config = base_config.get("trading", {})
     scalping_config = trading_config.get("scalping", {})

@@ -10,8 +10,7 @@ import joblib
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
-from datetime import datetime
+from typing import Dict, List, Any
 
 # Configure logging
 logging.basicConfig(
@@ -70,7 +69,7 @@ class Phase2BacktestImproved:
             },
         }
     
-    def load_config(self) -> Dict:
+    def load_config(self) -> Dict[str, Any]:
         try:
             with open(self.config_path) as f:
                 return json.load(f)
@@ -217,8 +216,8 @@ class Phase2BacktestImproved:
             logger.debug(f"ML signal error: {e}")
             return np.zeros(len(df))
     
-    def simulate_trades(self, symbol: str, df: pd.DataFrame, models_dict: Dict,
-                       features_dict: Dict, improvement_config: Dict) -> List[Dict]:
+    def simulate_trades(self, symbol: str, df: pd.DataFrame, models_dict: Dict[str, Any],
+                       features_dict: Dict[str, Any], improvement_config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Simulate trades with Phase 2 improvements"""
         trades = []
         
@@ -333,7 +332,7 @@ class Phase2BacktestImproved:
         
         return trades
     
-    def calculate_metrics(self, trades: List[Dict]) -> Dict[str, Any]:
+    def calculate_metrics(self, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate performance metrics"""
         if not trades:
             return {
@@ -458,7 +457,7 @@ class Phase2BacktestImproved:
         # Summary comparison
         self.print_comparison_summary(all_results)
     
-    def print_comparison_summary(self, all_results: Dict):
+    def print_comparison_summary(self, all_results: Dict[str, Any]):
         """Print comparison of all scenarios"""
         logger.info(f"\n{'=' * 80}")
         logger.info("PHASE 2 IMPROVEMENT SUMMARY")

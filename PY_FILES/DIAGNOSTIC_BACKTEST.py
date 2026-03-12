@@ -9,18 +9,9 @@ import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 import joblib
 import logging
-from datetime import datetime, timedelta
-
-# Import your feature engineering function
-try:
-    from func import apply_features
-except ImportError:
-    # Fallback if import fails
-    def apply_features(df):
-        return df
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -167,8 +158,8 @@ class DiagnosticBacktester:
             logger.warning(f"ML signal error: {e}")
             return np.zeros(len(df))
     
-    def simulate_trades(self, symbol: str, df: pd.DataFrame, models_dict: Dict, 
-                       features_dict: Dict, risk_pct: float = 0.01) -> List[Dict]:
+    def simulate_trades(self, symbol: str, df: pd.DataFrame, models_dict: Dict[str, Any],
+                       features_dict: Dict[str, Any], risk_pct: float = 0.01) -> List[Dict[str, Any]]:
         """Simulate trades based on ML signals"""
         trades = []
         
@@ -232,7 +223,7 @@ class DiagnosticBacktester:
         
         return trades
     
-    def calculate_metrics(self, trades: List[Dict]) -> Dict[str, Any]:
+    def calculate_metrics(self, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate performance metrics from trades"""
         if not trades:
             return {
