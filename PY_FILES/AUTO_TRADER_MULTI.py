@@ -87,7 +87,7 @@ class MultiSymbolAutoTrader:
         ]
 
     @staticmethod
-    def discover_symbols_from_models(models_root: Path = None) -> List[str]:
+    def discover_symbols_from_models(models_root: Optional[Path] = None) -> List[str]:
         """Discover tradable symbols from model folders only."""
         if models_root is None:
             # Resolve relative to script location, not current working directory
