@@ -229,9 +229,15 @@ class MultiSymbolAutoTrader:
         ]
 
     @staticmethod
-    def discover_symbols_from_models(models_root: Path = Path("../ALL_MODELS")) -> List[str]:
+    def discover_symbols_from_models(models_root: Path = None) -> List[str]:
         """Discover tradable symbols from model folders only."""
+        if models_root is None:
+            # Resolve relative to script location, not current working directory
+            script_dir = Path(__file__).parent
+            models_root = script_dir.parent / "ALL_MODELS"
+        
         if not models_root.exists():
+            logging.warning(f"Models root not found: {models_root}")
             return []
 
         symbols: List[str] = []
@@ -246,6 +252,7 @@ class MultiSymbolAutoTrader:
             if has_model_files and has_feature_file:
                 symbols.append(item.name)
 
+        logging.info(f"[DISCOVERY] Found {len(symbols)} symbols with models in {models_root}")
         return symbols
 
     def filter_symbols_by_mt5_availability(self) -> Tuple[List[str], List[str]]:
@@ -350,11 +357,17 @@ class MultiSymbolAutoTrader:
         if not self.use_ml:
             return True
         
+        # Resolve models directory relative to script location
+        script_dir = Path(__file__).parent
+        models_root = script_dir.parent / "ALL_MODELS"
+        
+        logging.info(f"[MODELS] Loading from: {models_root}")
+        
         loaded_count = 0
         for symbol in self.symbols:
-            model_dir = Path("../ALL_MODELS") / symbol
+            model_dir = models_root / symbol
             if not model_dir.exists():
-                logging.warning(f"No models found for {symbol}")
+                logging.warning(f"[MODELS] No models found for {symbol} at {model_dir}")
                 continue
                 
             try:
@@ -364,10 +377,10 @@ class MultiSymbolAutoTrader:
                     if isinstance(loaded_features, list):
                         self.model_features[symbol] = [str(feature) for feature in loaded_features]
                         logging.info(
-                            f"Loaded feature metadata: {symbol} ({len(self.model_features[symbol])} features)"
+                            f"[MODELS] Loaded feature metadata: {symbol} ({len(self.model_features[symbol])} features)"
                         )
                     else:
-                        logging.warning(f"Invalid features list for {symbol}, using empty list")
+                        logging.warning(f"[MODELS] Invalid features list for {symbol}, using empty list")
 
                 # Load symbol-specific optimal threshold from metadata
                 metadata_path = model_dir / "model_metadata.json"
@@ -387,12 +400,12 @@ class MultiSymbolAutoTrader:
                         capped_thresh = min(optimal_thresh, 0.65)  # Cap metadata thresholds
                         self.symbol_optimal_thresholds[symbol] = max(capped_thresh, self.ml_threshold)  # But respect global min
                         logging.info(
-                            f"[{symbol}] Using optimal threshold: {self.symbol_optimal_thresholds[symbol]:.2f} "
+                            f"[MODELS] [{symbol}] Using optimal threshold: {self.symbol_optimal_thresholds[symbol]:.2f} "
                             f"(metadata: {optimal_thresh:.2f}, capped: {capped_thresh:.2f}, global: {self.ml_threshold:.2f})"
                         )
                 else:
                     self.symbol_optimal_thresholds[symbol] = self.ml_threshold
-                    logging.warning(f"[{symbol}] No metadata found, using global threshold: {self.ml_threshold:.2f}")
+                    logging.warning(f"[MODELS] [{symbol}] No metadata found, using global threshold: {self.ml_threshold:.2f}")
 
                 # Load models for different timeframes (intraday and daily/higher)
                 timeframes = ["T_5M", "T_10M", "T_15M", "T_20M", "T_30M", "T_1H", "T_4H", "T_1D", "T_1W", "T_1M"]
@@ -401,18 +414,23 @@ class MultiSymbolAutoTrader:
                     scaler_path = model_dir / f"{tf}_scaler.joblib"
                     
                     if model_path.exists() and scaler_path.exists():
-                        self.models[symbol][tf] = joblib.load(model_path)
-                        self.scalers[symbol][tf] = joblib.load(scaler_path)
-                        loaded_count += 1
-                        logging.info(f"Loaded model: {symbol}/{tf}")
+                        try:
+                            self.models[symbol][tf] = joblib.load(model_path)
+                            self.scalers[symbol][tf] = joblib.load(scaler_path)
+                            loaded_count += 1
+                            logging.info(f"[MODELS] Loaded: {symbol}/{tf}")
+                        except Exception as e:
+                            logging.error(f"[MODELS] Error loading {symbol}/{tf}: {e}")
                         
             except Exception as e:
-                logging.error(f"Error loading models for {symbol}: {e}")
+                logging.error(f"[MODELS] Error loading models for {symbol}: {e}")
         
         if loaded_count == 0 and self.use_ml:
-            logging.warning("No models loaded, trading without ML")
+            logging.error(f"[MODELS] No models loaded ({loaded_count} files), trading without ML")
             self.use_ml = False
-            
+            return False
+        
+        logging.info(f"[MODELS] Successfully loaded {loaded_count} model files for {len(self.models)} symbols")
         return True
             
     def get_market_data(self, symbol: str, bars: int = 100) -> Optional[pd.DataFrame]:
