@@ -620,12 +620,15 @@ class MultiSymbolAutoTrader:
                 # Use symbol-specific optimal threshold
                 base_threshold = self.symbol_optimal_thresholds.get(symbol, self.ml_threshold)
                 
-                # Use lower threshold for BUY signals to balance the bias towards SELL predictions
-                buy_threshold = base_threshold * 0.8  # 20% lower threshold for BUY
+                # FIX: Use SAME threshold for both BUY and SELL signals to avoid bias
+                # Previously: BUY needed 80% confidence, SELL needed 100% - causing SELL bias
+                buy_threshold = base_threshold
                 sell_threshold = base_threshold
                 
-                # Log signal details periodically
-                if diag_key not in self._ml_diag_logged_symbols or np.random.random() < 0.05:  # Log 5% of signals
+                # Log signal details periodically.  Always emit for EURUSD so we can
+                # inspect its behavior in live logs; otherwise log ~5% of signals to
+                # keep the output manageable.
+                if symbol == "EURUSD" or diag_key not in self._ml_diag_logged_symbols or np.random.random() < 0.05:
                     logging.info(
                         f"[ML SIGNAL] {symbol} | BUY={prob_buy:.3f} SELL={prob_sell:.3f} | "
                         f"buy_thresh={buy_threshold:.2f} sell_thresh={sell_threshold:.2f} | "
@@ -916,7 +919,7 @@ class MultiSymbolAutoTrader:
             # Log lot calculation for transparency
             logging.info(
                 f"[{symbol}] Lot calculation: balance=${account.balance:.2f} | "
-                f"risk={self.risk_percent}% (${risk_money:.2f}) | SL={stop_loss_pips}pips | "
+                f"risk={self.risk_percent}% (${risk_money:.2f}) | SL={stop_loss_pips:.1f}pips | "
                 f"tick_value=${tick_value:.6f} | calculated={risk_money / (stop_loss_pips * tick_value):.4f} | "
                 f"final={lot_size:.6f} (min={lot_min}, max={lot_max}, step={lot_step})"
             )
