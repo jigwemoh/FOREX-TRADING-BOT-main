@@ -198,6 +198,7 @@ Adapts timeframe and risk based on time:
 
 Stops trading when:
 - 4 consecutive losses (revenge trading prevention)
+ - Daily drawdown exceeds configured percentage (scalping.max_daily_loss); previously the hardcoded $100 limit would trigger unexpectedly, now it reads the value from `config.json` and falls back to $100 only if unset.
 
 ### 6. **Professional Auto‑Breakeven**
 
