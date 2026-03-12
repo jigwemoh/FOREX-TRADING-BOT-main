@@ -46,6 +46,7 @@ class ConfigManager:
         stop_loss_pips = float(input("Stop loss in pips (default: 50): ") or "50")
         take_profit_pips = float(input("Take profit in pips (default: 100): ") or "100")
         trailing_stop_pips = float(input("Trailing stop in pips (default: 30): ") or "30")
+        breakeven_gap_pips = float(input("Breakeven gap in pips (move SL to entry+gap after profit, default: 0): ") or "0")
         
         # Execution
         print("\n[Execution]")
@@ -75,6 +76,7 @@ class ConfigManager:
                 "stop_loss_pips": stop_loss_pips,
                 "take_profit_pips": take_profit_pips,
                 "trailing_stop_pips": trailing_stop_pips
+                ,"breakeven_gap_pips": breakeven_gap_pips
             },
             "execution": {
                 "check_interval": check_interval,

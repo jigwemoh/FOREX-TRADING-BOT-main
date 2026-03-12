@@ -77,6 +77,8 @@ class MultiSymbolAutoTrader:
         max_positions_global: int = 5,
         use_ml: bool = True,
         ml_threshold: float = 0.55
+        ,
+        breakeven_gap_pips: float = 0.0
     ):
         self.symbols = symbols or ["EURUSD"]
         self.timeframe = timeframe
@@ -92,6 +94,7 @@ class MultiSymbolAutoTrader:
         self._feature_gap_logged: Set[str] = set()
         self._ml_diag_logged_symbols: Set[str] = set()
         self.is_running = False
+        self.breakeven_gap_pips = breakeven_gap_pips
         
         # Risk Management Thresholds
         self.max_daily_loss = 100.0  # Max loss before stopping trading ($)
@@ -757,6 +760,9 @@ class MultiSymbolAutoTrader:
                     
                     # Apply trailing stop
                     self._update_trailing_stop(pos, symbol_info, current_price)
+
+                    # apply professional breakeven protection
+                    self._apply_breakeven(pos, symbol_info, profit_pips)
                     
                     # Check if position should be closed based on risk/profit
                     self._check_position_close_conditions(pos, symbol_info, current_price, profit_loss, profit_pips)
@@ -787,6 +793,26 @@ class MultiSymbolAutoTrader:
                     
         except Exception as e:
             logging.warning(f"Error updating trailing stop for ticket {pos.ticket}: {e}")
+
+    def _apply_breakeven(self, pos: Any, symbol_info: Any, profit_pips: float):
+        """Move stop loss to a professional breakeven level (scalping version)."""
+        try:
+            if self.breakeven_gap_pips <= 0:
+                return
+
+            gap = self.breakeven_gap_pips * symbol_info.point
+            if pos.type == mt5.ORDER_TYPE_BUY:
+                if profit_pips >= self.breakeven_gap_pips:
+                    desired_sl = pos.price_open + gap
+                    if desired_sl > pos.sl:
+                        self._modify_position_sl(pos, desired_sl, symbol_info)
+            else:
+                if profit_pips >= self.breakeven_gap_pips:
+                    desired_sl = pos.price_open - gap
+                    if desired_sl < pos.sl:
+                        self._modify_position_sl(pos, desired_sl, symbol_info)
+        except Exception as e:
+            logging.warning(f"Error applying breakeven for ticket {pos.ticket}: {e}")
     
     def _modify_position_sl(self, pos: Any, new_sl: float, symbol_info: Any):
         """Modify stop loss for a position"""
@@ -2023,6 +2049,7 @@ if __name__ == "__main__":
     mt5_cfg = config.get("mt5", {})
     trading_cfg = config.get("trading", {})
     execution_cfg = config.get("execution", {})
+    risk_cfg = config.get("risk_management", {})
 
     MT5_LOGIN = int(mt5_cfg.get("login", 0))
     MT5_PASSWORD = str(mt5_cfg.get("password", ""))
@@ -2071,6 +2098,7 @@ if __name__ == "__main__":
     MAX_POSITIONS_GLOBAL = int(trading_cfg.get("max_positions_global", 5))
     USE_ML = bool(trading_cfg.get("use_ml", True))
     ML_THRESHOLD = float(trading_cfg.get("ml_threshold", 0.55))
+    BREAKEVEN_GAP = float(risk_cfg.get("breakeven_gap_pips", 0.0))
     CHECK_INTERVAL = int(execution_cfg.get("check_interval", 300))
     
     # Create trader
@@ -2082,6 +2110,8 @@ if __name__ == "__main__":
         max_positions_global=MAX_POSITIONS_GLOBAL,
         use_ml=USE_ML,
         ml_threshold=ML_THRESHOLD
+        ,
+        breakeven_gap_pips=BREAKEVEN_GAP
     )
     
     # Initialize MT5

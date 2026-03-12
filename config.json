@@ -154,6 +154,12 @@
       "max_loss_multiplier": 1.2
     }
   },
+  "risk_management": {
+    "stop_loss_pips": 50,
+    "take_profit_pips": 100,
+    "trailing_stop_pips": 30,
+    "breakeven_gap_pips": 0
+  },
   "mt5": {
     "login": 49356140,
     "password": "Jerusalem@12",

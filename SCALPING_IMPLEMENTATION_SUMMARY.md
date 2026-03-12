@@ -199,6 +199,22 @@ Adapts timeframe and risk based on time:
 Stops trading when:
 - 4 consecutive losses (revenge trading prevention)
 
+### 6. **Professional Auto‑Breakeven**
+
+Every open position is automatically protected once it has earned a
+small amount of profit.  A configurable **breakeven gap** (default 0)
+is specified in pips – when the trade’s unrealised gain reaches that
+value the stop loss is moved to the entry price plus the gap (buy) or
+minus the gap (sell).  The adjustment happens before any trailing stop
+logic, so once the threshold is touched the trade can no longer close
+at a loss.  This mirrors the "professional even gap" used by institutional
+traders to ensure they never give back a trade that has made money.
+
+Configuration example in `config.json`:
+```json
+"breakeven_gap_pips": 1.5
+```
+
 ---
 
 ### 🛠 Troubleshooting
