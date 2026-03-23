@@ -581,7 +581,8 @@ class MultiSymbolAutoTrader:
                     
                     current_price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
                     profit_points = (current_price - pos.price_open) if pos.type == mt5.ORDER_TYPE_BUY else (pos.price_open - current_price)
-                    profit_pips = profit_points / symbol_info.point
+                    pip_size = symbol_info.point * 10 if symbol_info.digits in (3, 5) else symbol_info.point
+                    profit_pips = profit_points / pip_size
                     profit_loss = pos.profit
                     
                     # Log position status

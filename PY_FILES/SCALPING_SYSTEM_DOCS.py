@@ -400,7 +400,8 @@ if scalping_integration.should_scalp_symbol(symbol):
     # Get M1/M5 data
     df_scalp = self.get_market_data(symbol, bars=50, timeframe="M1")
     
-    # Detect scalping setup
+    # Detect scalping setup (Phase 1: high_conviction_setups filters to EMA/Sweep only)
+    allowed = self.config.get("trading", {}).get("scalping", {}).get("high_conviction_setups")
     scalp_setup = create_scalping_setup_from_ml(
         symbol=symbol,
         ml_signal=ml_signal,
@@ -409,7 +410,8 @@ if scalping_integration.should_scalp_symbol(symbol):
         current_price=df_scalp['close'].iloc[-1],
         atr_value=ATR_VALUE,
         spread_pips=current_spread,
-        scalping_engine=self.scalping_engines[symbol]
+        scalping_engine=self.scalping_engines[symbol],
+        allowed_setup_types=allowed
     )
     
     if scalp_setup:

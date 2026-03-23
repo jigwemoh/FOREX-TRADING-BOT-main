@@ -141,6 +141,13 @@ def apply_features(df: pd.DataFrame) -> pd.DataFrame:
     df['Bull_Pressure'] = (df['Close'] > df['Open']).rolling(3).sum()
     df['Bear_Pressure'] = (df['Close'] < df['Open']).rolling(3).sum()
 
+    # Phase 4: Regime detection features for ML training
+    atr_ma = df['ATR'].rolling(50, min_periods=20).mean()
+    atr_std = df['ATR'].rolling(50, min_periods=20).std().fillna(0)
+    atr_z = (df['ATR'] - atr_ma) / (atr_std + 1e-9)
+    df['Volatility_Regime'] = np.where(atr_z < -0.5, 0, np.where(atr_z > 0.5, 2, 1))  # 0=low, 1=normal, 2=high
+    df['Trend_Regime'] = df['TREND']  # -1 bear, 1 bull
+
     # feature_ = df.columns.to_list()
     # for all_feature in feature_:
     #     for amt_lag in range(1,6):

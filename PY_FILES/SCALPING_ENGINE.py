@@ -1523,6 +1523,14 @@ class PerformanceAnalytics:
 
         self.regime_performance[regime]['total_pnl'] += trade['pnl']
 
+    def get_cumulative_win_rate(self, min_samples: int = 5) -> float:
+        """Phase 3: Get cumulative win rate for intelligent daily loss adjustment.
+        Returns 0.5 if insufficient samples."""
+        if len(self.trade_history) < min_samples:
+            return 0.5
+        wins = sum(1 for t in self.trade_history if t.get('pnl', 0) > 0)
+        return wins / len(self.trade_history)
+
     def get_setup_win_rate(self, setup_type: str) -> float:
         """Get win rate for specific setup type"""
         if setup_type not in self.setup_performance:
@@ -1804,7 +1812,8 @@ def create_scalping_setup_from_ml(
     current_price: float,
     atr_value: float,
     spread_pips: float,
-    scalping_engine: ScalpingEngine
+    scalping_engine: ScalpingEngine,
+    allowed_setup_types: Optional[List[str]] = None
 ) -> Optional[Tuple[ScalpingSetup, float]]:
     """
     Create scalping setup combining ML signals with microstructure detection
@@ -1822,7 +1831,17 @@ def create_scalping_setup_from_ml(
     Returns:
         (ScalpingSetup, final_confidence) tuple if valid setup, None otherwise
     """
-    
+    # Phase 2: ML confidence gate - require >= 0.65
+    if ml_confidence < 0.65:
+        return None
+
+    # Phase 2: Volatility gate - no scalping if ATR too low (dead market)
+    if len(df) >= 20 and 'ATR' in df.columns:
+        recent_atr = df['ATR'].tail(20).median()
+        if recent_atr > 0 and (atr_value / recent_atr) < 0.5:
+            logger.debug(f"[{symbol}] ATR too low (dead market), skipping scalping")
+            return None
+
     # Generate setup candidates from microstructure
     setups = []
     
@@ -1858,7 +1877,11 @@ def create_scalping_setup_from_ml(
     volume_setup = scalping_engine.detect_volume_spike(df, current_price, atr_value, spread_pips)
     if volume_setup and volume_setup.direction == ml_signal:
         setups.append(volume_setup)
-    
+
+    # Phase 1: Combine only high-conviction setups (e.g. EMA or Sweep, exclude low win-rate types)
+    if allowed_setup_types:
+        setups = [s for s in setups if any(s.setup_type.startswith(t) for t in allowed_setup_types)]
+
     if not setups:
         return None
     

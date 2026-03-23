@@ -104,6 +104,7 @@ class MultiSymbolAutoTrader:
         self.max_account_drawdown_percent = 5.0  # Max drawdown % before closing all positions
         self.max_consecutive_losses = 5  # Stop opening new trades after N consecutive losses
         self.consecutive_loss_counter = 0  # Track consecutive losing trades
+        self.pause_new_trades = False  # When True: stop opening, keep managing open positions
         
         # MT5 timeframe mapping
         self.timeframe_map = {
@@ -749,7 +750,8 @@ class MultiSymbolAutoTrader:
                     
                     current_price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
                     profit_points = (current_price - pos.price_open) if pos.type == mt5.ORDER_TYPE_BUY else (pos.price_open - current_price)
-                    profit_pips = profit_points / symbol_info.point
+                    pip_size = symbol_info.point * 10 if symbol_info.digits in (3, 5) else symbol_info.point
+                    profit_pips = profit_points / pip_size
                     profit_loss = pos.profit
                     
                     # Log position status
@@ -953,6 +955,16 @@ class MultiSymbolAutoTrader:
             # Lot size = Risk Money / (Stop Loss in pips * Tick Value)
             stop_loss_pips = 50
             lot_size = risk_money / (stop_loss_pips * tick_value)
+
+            # Phase 3: Scale position size with confidence (1.5x high, 1.0x medium, 0.5x low)
+            if confidence >= 0.70:
+                conf_mult = 1.5
+            elif confidence >= 0.55:
+                conf_mult = 1.0
+            else:
+                conf_mult = 0.5
+            lot_size = lot_size * conf_mult
+            logging.info(f"[{symbol}] Confidence multiplier: {conf_mult:.1f}x (conf={confidence:.2f})")
             
             # Enforce symbol's volume constraints
             lot_step = symbol_info.volume_step
@@ -1030,26 +1042,25 @@ class MultiSymbolAutoTrader:
                 # ===== CRITICAL LOSS MANAGEMENT CHECK =====
                 account_info = mt5.account_info()
                 if account_info:
-                    # Determine loss threshold: percent of balance takes precedence
+                    # Phase 3: Intelligent daily loss - 2% base, 1-3% by win rate (1% when losing, 3% when winning)
                     if self.max_daily_loss_pct > 0:
-                        # unrealized profit used as proxy; negative value indicates loss
-                        threshold = -account_info.balance * self.max_daily_loss_pct
+                        wr = self.performance_analytics.get_cumulative_win_rate()
+                        effective_pct = max(0.01, min(0.03, 0.01 + 0.02 * wr))
+                        threshold = -account_info.balance * effective_pct
                         if account_info.profit < threshold:
-                            logging.error(
-                                f"[CRITICAL] Daily loss limit exceeded: ${account_info.profit:.2f} < ${threshold:.2f} ({self.max_daily_loss_pct:.2%} of balance). STOPPING ALL TRADING"
+                            self.pause_new_trades = True
+                            logging.warning(
+                                f"[PAUSED] Daily loss limit exceeded: ${account_info.profit:.2f} < ${threshold:.2f} "
+                                f"(effective {effective_pct:.1%} from wr={wr:.1%}). Pausing new trades, managing open positions only."
                             )
-                            self.is_running = False
-                            self._close_all_positions()
-                            break
                     else:
                         # legacy dollar-based limit
                         if account_info.profit < -self.max_daily_loss:
-                            logging.error(
-                                f"[CRITICAL] Daily loss limit exceeded: ${account_info.profit:.2f} < -${self.max_daily_loss}. STOPPING ALL TRADING"
+                            self.pause_new_trades = True
+                            logging.warning(
+                                f"[PAUSED] Daily loss limit exceeded: ${account_info.profit:.2f} < -${self.max_daily_loss}. "
+                                f"Pausing new trades, managing open positions only."
                             )
-                            self.is_running = False
-                            self._close_all_positions()
-                            break
                     
                     # Check account drawdown
                     drawdown_percent = (account_info.profit / account_info.balance) * 100 if account_info.balance > 0 else 0
@@ -1058,7 +1069,7 @@ class MultiSymbolAutoTrader:
                             f"[RISK] Account drawdown: {drawdown_percent:.2f}% (limit: {-self.max_account_drawdown_percent}%). "
                             f"Pausing new trades, managing existing positions only"
                         )
-                        # Don't open new trades, but continue managing existing ones
+                        self.manage_all_trades()
                         time.sleep(check_interval)
                         continue
                     
@@ -1066,14 +1077,22 @@ class MultiSymbolAutoTrader:
                     all_positions = self.get_all_open_positions()
                     if len(all_positions) > 0:
                         # Count positions with losses
-                        loss_count = sum(1 for pos in all_positions if pos.get('profit', 0) < 0)
+                        loss_count = sum(1 for pos in all_positions if getattr(pos, 'profit', 0) < 0)
                         if loss_count >= self.max_consecutive_losses:
                             logging.warning(
                                 f"[RISK] Too many losing positions ({loss_count}/{self.max_consecutive_losses}). "
                                 f"Pausing new trades"
                             )
+                            self.manage_all_trades()
                             time.sleep(check_interval)
                             continue
+                
+                # When daily loss limit reached: manage open positions only, do not open new trades
+                if self.pause_new_trades:
+                    logging.info("[PAUSED] Daily loss limit reached - managing existing positions only")
+                    self.manage_all_trades()
+                    time.sleep(check_interval)
+                    continue
                 
                 # Get market data
                 df = self.get_market_data(symbol, 100)
@@ -1152,6 +1171,14 @@ class MultiSymbolAutoTrader:
                 entry_price = position.price_open
                 current_price = position.price_current
                 lot_size = position.volume
+                
+                # Apply professional breakeven for ALL positions
+                symbol_info = mt5.symbol_info(symbol)
+                if symbol_info is not None:
+                    profit_points = (current_price - entry_price) if position.type == mt5.ORDER_TYPE_BUY else (entry_price - current_price)
+                    pip_size = symbol_info.point * 10 if symbol_info.digits in (3, 5) else symbol_info.point
+                    profit_pips = profit_points / pip_size
+                    self._apply_breakeven(position, symbol_info, profit_pips)
                 
                 # Get current ATR for dynamic stops
                 df_current = self._get_market_data_timeframe(symbol, 20, "M5")

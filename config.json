@@ -9,7 +9,7 @@
     "max_positions": 3,
     "max_positions_global": 5,
     "use_ml": true,
-    "ml_threshold": 0.52,
+    "ml_threshold": 0.60,
     "scalping": {
       "enabled": true,
       "timeframes": ["M5"],
@@ -20,14 +20,15 @@
       "reward_ratio": 1.5,
       "confluence_filtering": true,
       "min_confluence_signals": 2,
+      "high_conviction_setups": ["EMA_BREAKOUT", "LIQUIDITY_SWEEP"],
       "max_bars_held": {
         "M1": 5,
         "M5": 12,
         "H1": 24
       },
       "trailing_stop_activation": 1.0,
-      "scale_out_levels": [1.0, 2.0, 3.0],
-      "scale_out_sizes": [0.3, 0.3, 0.4]
+      "scale_out_levels": [1.0],
+      "scale_out_sizes": [0.5]
     },
     "microstructure": {
       "detect_liquidity_sweeps": true,
@@ -148,8 +149,8 @@
         "M30": 4
       },
       "trailing_stop_activation": 1.0,
-      "scale_out_levels": [1.0, 2.0, 3.0],
-      "scale_out_sizes": [0.3, 0.3, 0.4],
+      "scale_out_levels": [1.0],
+      "scale_out_sizes": [0.5],
       "time_exit_volatility_adjustment": true,
       "dynamic_stop_buffer": 0.2,
       "profit_lock_threshold": 1.5,
@@ -160,7 +161,7 @@
     "stop_loss_pips": 25,
     "take_profit_pips": 75,
     "trailing_stop_pips": 30,
-    "breakeven_gap_pips": 0
+    "breakeven_gap_pips": 5
   },
   "mt5": {
     "login": 49356140,
