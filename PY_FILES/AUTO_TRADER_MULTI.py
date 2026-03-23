@@ -296,7 +296,7 @@ class MultiSymbolAutoTrader:
         logging.info(f"[MODELS] Successfully loaded {loaded_count} model files for {len(self.models)} symbols")
         return True
             
-    def get_market_data(self, symbol: str, bars: int = 100) -> Optional[pd.DataFrame]:
+    def get_market_data(self, symbol: str, bars: int = 500) -> Optional[pd.DataFrame]:
         """Fetch latest market data from MT5 for a specific symbol"""
         try:
             # Select symbol in terminal
@@ -326,8 +326,8 @@ class MultiSymbolAutoTrader:
             logging.error(f"Error fetching market data for {symbol}: {e}")
             return None
             
-    def calculate_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate technical features for ML prediction"""
+    def _legacy_calculate_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Original bot feature set for models trained on this schema."""
         try:
             df = df.copy()
 
@@ -400,9 +400,65 @@ class MultiSymbolAutoTrader:
             return df
             
         except Exception as e:
-            logging.error(f"Error calculating features: {e}")
+            logging.error(f"Error calculating legacy features: {e}")
             return df
-            
+
+    def calculate_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Align live features with training (func.apply_features + multitf/XGBoost aliases).
+        """
+        df_raw = df.copy()
+        try:
+            if "time" in df_raw.columns:
+                df_raw["Date"] = pd.to_datetime(df_raw["time"])
+            elif "Date" not in df_raw.columns:
+                df_raw["Date"] = pd.to_datetime(df_raw.index)
+
+            ohlcv = df_raw[["Date", "Open", "High", "Low", "Close", "Volume"]].copy()
+
+            try:
+                from func import apply_features as _func_apply_features
+
+                combined = _func_apply_features(ohlcv)
+                combined = combined.copy()
+                combined["Returns"] = combined["Close"].pct_change()
+                combined["ATR_Pct"] = (
+                    combined["ATR"] / combined["Close"].replace(0, np.nan)
+                ).replace([np.inf, -np.inf], np.nan)
+                combined["BB_Mid"] = combined["Close"].rolling(20).mean()
+                combined["BB_Std"] = combined["Close"].rolling(20).std()
+                combined["Volume_MA"] = combined["Volume"].rolling(20).mean()
+                combined["Volume_Ratio"] = combined["Volume"] / combined["Volume_MA"].replace(0, np.nan)
+                combined["Volume_Ratio"] = combined["Volume_Ratio"].replace([np.inf, -np.inf], np.nan)
+                sw_h = combined["High"].rolling(5, center=True).max()
+                sw_l = combined["Low"].rolling(5, center=True).min()
+                combined["Swing_High"] = sw_h
+                combined["Swing_Low"] = sw_l
+                combined["Distance_to_High"] = sw_h - combined["Close"]
+                combined["Distance_to_Low"] = combined["Close"] - sw_l
+                if "BB_Middle" not in combined.columns and "BB_Mid" in combined.columns:
+                    combined["BB_Middle"] = combined["BB_Mid"]
+                combined = combined.reset_index()
+            except Exception as e:
+                logging.warning(f"func.apply_features failed, using legacy only: {e}")
+                combined = None
+
+            legacy = self._legacy_calculate_features(df_raw)
+
+            if combined is not None:
+                if legacy is not None and not legacy.empty and len(legacy) == len(combined):
+                    for col in legacy.columns:
+                        if col in ("time", "Date"):
+                            continue
+                        if col not in combined.columns:
+                            combined[col] = legacy[col].values
+                return combined.replace([np.inf, -np.inf], np.nan)
+
+            return legacy if legacy is not None else df_raw
+        except Exception as e:
+            logging.error(f"Error calculating features: {e}")
+            return self._legacy_calculate_features(df_raw)
+
     def get_ml_signal(self, symbol: str, df: pd.DataFrame) -> Tuple[int, float]:
         """Get ML prediction signal for a symbol"""
         if not self.use_ml or symbol not in self.models or not self.models[symbol]:
@@ -447,7 +503,7 @@ class MultiSymbolAutoTrader:
                 )
                 self._ml_diag_logged_symbols.add(diag_key)
 
-            latest = df.dropna().iloc[-1:]
+            latest = df.iloc[-1:].copy()
             if latest.empty:
                 return 0, 0.0
 
@@ -802,7 +858,7 @@ class MultiSymbolAutoTrader:
             )
             
             # Get market data for entry
-            df = self.get_market_data(symbol, 100)
+            df = self.get_market_data(symbol, 500)
             if df is None:
                 return
                 
@@ -845,7 +901,7 @@ class MultiSymbolAutoTrader:
         while self.is_running:
             try:
                 # Get market data
-                df = self.get_market_data(symbol, 100)
+                df = self.get_market_data(symbol, 500)
                 if df is None:
                     time.sleep(60)
                     continue
